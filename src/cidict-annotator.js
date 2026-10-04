@@ -2,8 +2,11 @@
  *
  * Integrasi (satu script saja):
  * - Pinyin inline via <ruby>/<rt> bawaan browser (bisa dimatikan).
+ * - Toggle Simplified <-> Traditional instan via atribut data-trad.
  * - Popup definisi: hover instan di desktop, tap-toggle di touch.
  * - Theme popup: 'light' (default) | 'dark'.
+ * - Preferensi (showInline, showPopups, theme, trad) tersimpan otomatis
+ *   di localStorage dan dipulihkan saat script di-load.
  * - Response API ringan: `tokens` hanya berisi token ber-hanzi.
  * - Teks panjang dipecah jadi chunk dan di-fetch paralel (chunkSize,
  *   maxConcurrency); ada indikator loading (opsi `loading`).
@@ -12,7 +15,7 @@
 (function (global) {
   'use strict';
 
-  var VERSION = '2.1.1';
+  var VERSION = '2.2.0';
 
   var defaults = {
     apiBase: null,      // null = origin dari script ini (atau '' = origin halaman)
@@ -25,6 +28,37 @@
   };
   var opts = {};
   configure(defaults);
+
+  // ---------- preferensi (localStorage) ----------
+  // showInline, showPopups, theme, dan trad disimpan otomatis setiap berubah
+  // dan dipulihkan saat script di-load. Opsi eksplisit di annotate() tetap
+  // menang atas nilai tersimpan.
+
+  var useTrad = false; // tampilkan hanzi tradisional
+  var PREF_KEY = 'cidict_prefs';
+
+  function savePrefs() {
+    try {
+      localStorage.setItem(PREF_KEY, JSON.stringify({
+        showInline: !!opts.showInline,
+        showPopups: !!opts.showPopups,
+        theme: opts.theme,
+        trad: useTrad
+      }));
+    } catch (e) { /* abaikan (mode privat, dsb) */ }
+  }
+
+  function loadPrefs() {
+    var p = null;
+    try { p = JSON.parse(localStorage.getItem(PREF_KEY) || 'null'); } catch (e) {}
+    if (!p || typeof p !== 'object') return;
+    if (typeof p.showInline === 'boolean') opts.showInline = p.showInline;
+    if (typeof p.showPopups === 'boolean') opts.showPopups = p.showPopups;
+    if (p.theme === 'dark' || p.theme === 'light') opts.theme = p.theme;
+    if (typeof p.trad === 'boolean') useTrad = p.trad;
+  }
+
+  loadPrefs();
 
   var isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
   var dictCache = {};          // akumulasi { surface: { r:[{y,d}], t } }
@@ -87,12 +121,15 @@
   ].join('\n');
 
   function ensureStyle() {
-    if (document.getElementById('cidict-style')) return;
-    var st = document.createElement('style');
-    st.id = 'cidict-style';
-    st.type = 'text/css';
-    st.appendChild(document.createTextNode(CSS));
-    document.head.appendChild(st);
+    if (!document.getElementById('cidict-style')) {
+      var st = document.createElement('style');
+      st.id = 'cidict-style';
+      st.type = 'text/css';
+      st.appendChild(document.createTextNode(CSS));
+      document.head.appendChild(st);
+    }
+    // Selaraskan dengan preferensi showInline (termasuk hasil loadPrefs).
+    document.documentElement.classList.toggle('cidict-no-inline', !opts.showInline);
   }
 
   // ---------- popup (satu div bersama) ----------
@@ -185,6 +222,28 @@
 
   var HANZI_RE = /[一-鿿]/;
 
+  // Decode "t" dash-encoded dari API ("-" = sama dengan simplified)
+  // menjadi bentuk tradisional penuh.
+  function expandTrad(simp, dash) {
+    if (!dash) return simp;
+    var s = Array.from(simp), d = Array.from(dash);
+    var n = Math.max(s.length, d.length), out = '';
+    for (var i = 0; i < n; i++) {
+      if (d[i] === undefined) { out += s[i] || ''; continue; }
+      out += d[i] === '-' ? (s[i] || '') : d[i];
+    }
+    return out;
+  }
+
+  // Terapkan pilihan simplified/traditional ke semua ruby yang sudah dirender.
+  function applyTrad() {
+    Array.prototype.forEach.call(document.querySelectorAll('ruby.cidict-rb'), function (rb) {
+      var w = rb.getAttribute('data-w');
+      var txt = useTrad ? (rb.getAttribute('data-trad') || w) : w;
+      if (rb.firstChild) rb.firstChild.nodeValue = txt;
+    });
+  }
+
   function renderRuby(s, entry) {
     var frag = document.createDocumentFragment();
     if (!entry || !entry.r || !entry.r.length) {
@@ -197,8 +256,10 @@
     var ruby = document.createElement('ruby');
     ruby.className = 'cidict-rb';
     ruby.setAttribute('data-w', s);
+    var trad = entry.t ? expandTrad(s, entry.t) : s;
+    if (trad !== s) ruby.setAttribute('data-trad', trad);
     ruby.setAttribute('tabindex', '0');
-    ruby.appendChild(document.createTextNode(s));
+    ruby.appendChild(document.createTextNode(useTrad ? trad : s));
     var rt = document.createElement('rt');
     rt.textContent = entry.r[0].y || '';
     ruby.appendChild(rt);
@@ -590,12 +651,14 @@
     showPopups: function (b) {
       opts.showPopups = !!b;
       if (!opts.showPopups) hidePopup();
+      savePrefs();
       return this;
     },
 
     showInline: function (b) {
       opts.showInline = !!b;
       document.documentElement.classList.toggle('cidict-no-inline', !opts.showInline);
+      savePrefs();
       return this;
     },
 
@@ -603,6 +666,18 @@
       if (name !== 'dark' && name !== 'light') return this;
       opts.theme = name;
       if (popupEl) popupEl.dataset.cidictTheme = name;
+      savePrefs();
+      return this;
+    },
+
+    // Toggle Simplified <-> Traditional. Tanpa argumen = balik status;
+    // dengan boolean = set eksplisit. Instan (tanpa request), karena
+    // bentuk tradisional sudah di-render sebagai atribut data-trad.
+    // Preferensi tersimpan otomatis di localStorage.
+    toggleHanzi: function (state) {
+      useTrad = (typeof state === 'boolean') ? state : !useTrad;
+      applyTrad();
+      savePrefs();
       return this;
     },
 

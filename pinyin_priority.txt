@@ -14,5 +14,5 @@
 #
 # Muat ulang tanpa restart: POST /api/seg-reload
 
+# 那 = nà
 喝 = hē
-//那 = nà
