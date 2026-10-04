@@ -10,12 +10,12 @@ Port 1:1 dari implementasi Rust ke Node.js:
 |---|---|---|
 | HTTP server | axum | express |
 | Segmentasi | jieba-rs | @node-rs/jieba (binding resmi; algoritma identik) |
-| SQLite | rusqlite | better-sqlite3 |
+| SQLite | rusqlite | `node:sqlite` (bawaan Node 22.5+, tanpa dependensi native) |
 | Frontend | vanilla JS | sama (single-file build) |
 
 ## Syarat
 
-- Node.js 20+ (disarankan 22 LTS)
+- Node.js 22.5+ (butuh `node:sqlite` bawaan; disarankan 22 LTS)
 - npm atau pnpm
 
 ## Menjalankan
@@ -232,8 +232,9 @@ dengan aman untuk seleksi teks definisi.
 4. Restart aplikasi. Halaman demo ada di `/`, API di `/api/*`, client di
    `/static/cidict-annotator.min.js`.
 
-`better-sqlite3` dan `@node-rs/jieba` menyediakan prebuilt binary untuk
-Linux x64 sehingga tidak memerlukan toolchain kompilasi di server.
+SQLite memakai `node:sqlite` bawaan Node.js (tanpa native module, tanpa
+kompilasi). `@node-rs/jieba` menyediakan prebuilt binary untuk Linux x64
+sehingga tidak memerlukan toolchain kompilasi di server.
 
 ## Update database kamus (tanpa restart)
 

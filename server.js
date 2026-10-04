@@ -1,11 +1,11 @@
 /**
  * CC-CIDICT annotator backend (Node.js): HTTP API + static file server.
- * Segmentasi @node-rs/jieba, kamus SQLite (better-sqlite3).
+ * Segmentasi @node-rs/jieba, kamus SQLite (node:sqlite bawaan Node).
  * Dokumentasi lengkap: README.md.
  */
 
 import express from 'express';
-import Database from 'better-sqlite3';
+import { DatabaseSync } from 'node:sqlite';
 import { Jieba } from '@node-rs/jieba';
 import path from 'node:path';
 import fs from 'node:fs';
@@ -52,11 +52,11 @@ function env(key, dflt) {
   return process.env[key] !== undefined ? process.env[key] : dflt;
 }
 
-const VERSION = '0.2.11';
+const VERSION = '0.2.12';
 const PORT = Number.parseInt(env('PORT', '3100'), 10) || 3100;
 // Path relatif dihitung dari direktori project (bukan cwd), agar stabil
 // dijalankan dari mana pun.
-const DB_PATH = path.resolve(__dirname, env('CIDICT_DB', path.join('data', 'cc-cidict.db')));
+const DB_PATH = path.resolve(__dirname, env('CIDICT_DB', path.join('data', 'fixture.db')));
 const MIN_FREQ = Number.parseInt(env('CIDICT_MIN_FREQ', '1000'), 10) || 1000;
 const HMM = /^true$/i.test(env('CIDICT_HMM', 'false'));
 const OVERRIDES_FILE = path.join(__dirname, 'segment_overrides.txt');
@@ -231,7 +231,7 @@ function verifyDbChecksum() {
 // handle yang gagal selalu ditutup kembali.
 function openDictionary() {
   verifyDbChecksum();
-  const dbh = new Database(DB_PATH, { readonly: true });
+  const dbh = new DatabaseSync(DB_PATH, { readOnly: true });
   try {
     const count = dbh.prepare(COUNT_SQL).get().n;
     const built = buildJieba(dbh);
@@ -447,8 +447,8 @@ function diskInit() {
     // di-catch. Untuk path kustom yang lebih dalam, buat manual dulu.
     const dir = path.dirname(file);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir);
-    diskDb = new Database(file);
-    diskDb.pragma('journal_mode = WAL');
+    diskDb = new DatabaseSync(file);
+    diskDb.exec('PRAGMA journal_mode = WAL');
     diskDb.exec(
       'CREATE TABLE IF NOT EXISTS cache (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at INTEGER NOT NULL);' +
       'CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT NOT NULL);'
