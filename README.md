@@ -157,8 +157,8 @@ tradisional/simplified ikut otomatis. Muat ulang tanpa restart via
 ## Referensi client
 
 ```html
-<script src="//cdn.cidict.org/annotator/v2/cidict-annotator.min.js" charset="UTF-8"></script>
-<script>cidict.annotate('.chinesetext', {theme: 'light', phonetic: 'pinyin', show: true, inline: true, apiBase: "https://api.cidict.org"});</script>
+<script src="//api.cidict.org/static/cidict-annotator.min.js" charset="UTF-8"></script>
+<script>cidict.annotate('.artikel', { theme: 'light' });</script>
 ```
 
 `apiBase` default adalah origin tempat script dimuat, sehingga contoh di
@@ -208,12 +208,14 @@ cidict.annotate('.artikel', { loading: { target: '#loader', show: 'flex' } });
 | `cidict.health()` | Mengembalikan Promise `{ ok, version, entries, ... }` dari `/api/health` |
 | `cidict.showPopups(bool)` | Nyalakan/matikan popup. Mengembalikan `this` |
 | `cidict.showInline(bool)` | Nyalakan/matikan pinyin inline. Mengembalikan `this` |
+| `cidict.togglePinyin(bool?)` | Toggle pinyin inline. Tanpa argumen = balik status; dengan boolean = set eksplisit. Mengembalikan `this` |
 | `cidict.theme(name)` | `'light'` \| `'dark'`. Mengembalikan `this` |
+| `cidict.toggleTheme(name?)` | Toggle theme popup light ↔ dark. Tanpa argumen = balik status; dengan `'light'`/`'dark'` = set eksplisit. Mengembalikan `this` |
 | `cidict.toggleHanzi(bool?)` | Toggle Simplified ↔ Traditional. Tanpa argumen = balik status; dengan boolean = set eksplisit. Instan (tanpa request) karena bentuk tradisional sudah di-render sebagai atribut `data-trad` pada tiap `<ruby>`. Mengembalikan `this` |
 | `cidict.configure(options)` | Set opsi global. Mengembalikan `this` |
 | `cidict.supported()` | `true` bila `window.fetch` tersedia |
 | `cidict.destroy()` | Bersihkan anotasi, listener, popup, dan CSS. Mengembalikan `this` |
-| `cidict.version` | Versi client, misalnya `'2.2.0'` |
+| `cidict.version` | Versi client, misalnya `'2.3.0'` |
 
 `window.CidictAnnotator` tersedia sebagai alias.
 
@@ -227,10 +229,11 @@ Opsi eksplisit yang diberikan ke `annotate()`/`annotateText()` tetap
 menang atas nilai tersimpan untuk pemanggilan tersebut, tetapi tidak
 menimpa simpanan.
 
-Interaksi popup: hover membuka popup secara instan di desktop;
+Interaksi popup: hover membuka popup secara instan di desktop; popup
+langsung tertutup begitu pointer keluar dari hanzi (hover pada popup
+tidak mempertahankannya, agar hanzi di belakang popup tetap terjangkau);
 tap/klik toggle di perangkat sentuh; `Enter`/`Space` pada kata yang
-difokuskan membuka popup, `Escape` menutupnya. Popup dapat dipindah
-dengan aman untuk seleksi teks definisi.
+difokuskan membuka popup, `Escape` menutupnya.
 
 ## Deploy ke Hostinger Node.js Web App
 

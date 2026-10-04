@@ -9,12 +9,12 @@ Set Element ID to your buttons:
 
 ```javascript
 document.getElementById('togglePinyin').addEventListener('click', function () {
-  cidict.showInline(!document.documentElement.classList.contains('cidict-no-inline'));
+  cidict.togglePinyin();
 });
 document.getElementById('toggleHanzi').addEventListener('click', function () {
   cidict.toggleHanzi();
 });
 document.getElementById('toggleTheme').addEventListener('click', function () {
-  cidict.theme(cidict._isDark ? 'light' : 'dark'); // or save own state
+  cidict.toggleTheme();
 });
 ```

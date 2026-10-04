@@ -1,6 +1,9 @@
 /* CC-CIDICT annotator client v2 — single file (CSS di-inject dari JS).
  *
  * Integrasi (satu script saja):
+ *   <script src="//api.cidict.org/static/cidict-annotator.min.js" charset="UTF-8"></script>
+ *   <script>cidict.annotate('.artikel', { theme: 'light' });</script>
+ *
  * - Pinyin inline via <ruby>/<rt> bawaan browser (bisa dimatikan).
  * - Toggle Simplified <-> Traditional instan via atribut data-trad.
  * - Popup definisi: hover instan di desktop, tap-toggle di touch.
@@ -15,7 +18,7 @@
 (function (global) {
   'use strict';
 
-  var VERSION = '2.2.0';
+  var VERSION = '2.3.1';
 
   var defaults = {
     apiBase: null,      // null = origin dari script ini (atau '' = origin halaman)
@@ -524,9 +527,10 @@
     var ruby = closestRuby(e.target);
     if (!ruby || ruby !== popupFor) return;
     var to = e.relatedTarget;
-    // Biarkan popup tetap terbuka saat pointer pindah ke popup
-    // (agar teks definisi bisa di-select/copy).
-    if (to && (ruby.contains(to) || (popupEl && popupEl.contains(to)))) return;
+    // Popup langsung disembunyikan begitu pointer keluar dari ruby,
+    // termasuk saat pindah ke area popup — popup tidak boleh
+    // menghalangi hanzi di belakangnya.
+    if (to && ruby.contains(to)) return;
     hidePopup();
   }
 
@@ -662,12 +666,29 @@
       return this;
     },
 
+    // Toggle pinyin inline. Tanpa argumen = balik status;
+    // dengan boolean = set eksplisit. Status awal dibaca dari
+    // localStorage (via loadPrefs), jadi aman dipakai setelah reload.
+    togglePinyin: function (state) {
+      var next = (typeof state === 'boolean') ? state : !opts.showInline;
+      return this.showInline(next);
+    },
+
     theme: function (name) {
       if (name !== 'dark' && name !== 'light') return this;
       opts.theme = name;
       if (popupEl) popupEl.dataset.cidictTheme = name;
       savePrefs();
       return this;
+    },
+
+    // Toggle theme popup light <-> dark. Tanpa argumen = balik status;
+    // dengan 'light'/'dark' = set eksplisit.
+    toggleTheme: function (name) {
+      var next = (name === 'dark' || name === 'light')
+        ? name
+        : (opts.theme === 'dark' ? 'light' : 'dark');
+      return this.theme(next);
     },
 
     // Toggle Simplified <-> Traditional. Tanpa argumen = balik status;
