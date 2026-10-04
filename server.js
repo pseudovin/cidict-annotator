@@ -52,7 +52,7 @@ function env(key, dflt) {
   return process.env[key] !== undefined ? process.env[key] : dflt;
 }
 
-const VERSION = '0.2.12';
+const VERSION = '0.2.13';
 const PORT = Number.parseInt(env('PORT', '3100'), 10) || 3100;
 // Path relatif dihitung dari direktori project (bukan cwd), agar stabil
 // dijalankan dari mana pun.
@@ -224,7 +224,7 @@ function verifyDbChecksum() {
   if (sum !== manifestMd5) {
     throw new Error(`databaseMd5 tak cocok (file=${sum}, manifest=${manifestMd5}): DB bukan file yang dideskripsikan manifest`);
   }
-  console.error(`[cidict] database md5 ok (${((Date.now() - t0) / 1000).toFixed(2)}s)`);
+  console.log(`[cidict] database md5 ok (${((Date.now() - t0) / 1000).toFixed(2)}s)`);
 }
 
 // Buka + validasi DB lalu bangun semua artefak turunan. Throw bila tak valid;
@@ -269,7 +269,7 @@ function tryReloadDictionary(sig) {
     const d = openDictionary();
     activateDictionary(d);
     activeManifestVer = manifestVer; // sinkron dengan dbSignal: tak bisa berubah di tengah
-    console.error(`[cidict] database reload ok (signal=${sig}, entries=${d.count})`);
+    console.log(`[cidict] database reload ok (signal=${sig}, entries=${d.count})`);
     return true;
   } catch (err) {
     console.error(`[cidict] database reload GAGAL, tetap pakai yang lama (${err.message})`);
@@ -330,7 +330,7 @@ function buildJieba(dbh = db) {
   const dictText = [...freqs].map(([w, f]) => `${w}\t${f}`).join('\n');
   const jieba = Jieba.withDict(Buffer.from(dictText, 'utf8'));
 
-  console.error(
+  console.log(
     `[cidict] jieba lexicon ready: ${freqs.size} headwords ` +
       `(min_freq=${MIN_FREQ}, split_demoted=${JSON.stringify([...splitExpanded])})`
   );
@@ -349,7 +349,7 @@ dbSignal(); // baca manifest/mtime awal
   countStmt = d.countStmt;
   activeManifestVer = manifestVer;
   activeDbSignal = dbSignal();
-  console.error(`[cidict] dictionary ready: ${d.count} entries (signal=${activeDbSignal})`);
+  console.log(`[cidict] dictionary ready: ${d.count} entries (signal=${activeDbSignal})`);
 }
 
 // ---------- lookup ----------
@@ -624,5 +624,5 @@ app.post('/api/seg-reload', (req, res) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.error(`[cidict] listening on http://0.0.0.0:${PORT} (db=${DB_PATH}, hmm=${HMM})`);
+  console.log(`[cidict] listening on http://0.0.0.0:${PORT} (db=${DB_PATH}, hmm=${HMM})`);
 });
