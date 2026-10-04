@@ -1,0 +1,31 @@
+# CC-CIDICT segment_overrides.txt
+#
+# Satu kata per baris = force-split: kata ini di-DEMOTE (frekuensinya
+# dibuat sangat kecil, bukan dihapus dari leksikon), sehingga segmenter
+# hampir selalu memecahnya — tapi mesin probabilistiknya tetap utuh
+# (graceful, tidak ada mode gagal yang aneh).
+#
+# Baris kosong diabaikan. Komentar: awali baris dengan // atau #.
+# Daftar ini digabung (union) dengan env CIDict_SPLIT_WORDS bila di-set.
+# Padanan tradisional/simplified tiap kata ikut terkena otomatis.
+# Berlaku ulang tanpa restart via:  POST /api/seg-reload
+
+都会
+都會
+有了
+不好
+得很
+要看
+走时
+走時
+到了
+大山
+没有什么
+有水
+家的
+我去
+想来
+//非空
+中的
+书会
+

@@ -1,0 +1,26 @@
+{
+  "dependencies": {
+    "@node-rs/jieba": "^2.0.3",
+    "better-sqlite3": "^12.2.0",
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  },
+  "description": "CC-CIDICT Mandarin annotator — pinyin inline + popup definisi (Node.js)",
+  "engines": {
+    "node": ">=20"
+  },
+  "name": "cidict-annotator",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3"
+    ]
+  },
+  "scripts": {
+    "start": "node server.js",
+    "build": "esbuild src/cidict-annotator.js --minify --outfile=dist/cidict-annotator.min.js"
+  },
+  "type": "module",
+  "version": "0.2.11"
+}

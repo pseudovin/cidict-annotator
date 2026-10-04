@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CC-CIDICT Annotator — Demo</title>
+<style>
+  body { font-family: system-ui, "Noto Sans", sans-serif; margin: 0; background: #fafafa; color: #222; }
+  main { max-width: 860px; margin: 0 auto; padding: 32px 20px 80px; }
+  h1 { font-size: 1.5em; }
+  h1 small { display: block; font-size: 0.6em; font-weight: 400; opacity: 0.65; margin-top: 4px; }
+  textarea { width: 100%; min-height: 110px; font-size: 17px; padding: 12px; border-radius: 8px;
+             border: 1px solid #ccc; background: #fff; color: #222; box-sizing: border-box; }
+  button { margin-top: 10px; padding: 10px 22px; font-size: 15px; border: 0; border-radius: 8px;
+           background: #1a73e8; color: #fff; font-weight: 700; cursor: pointer; }
+  button:hover { background: #3b8bf0; }
+  #out { margin-top: 22px; padding: 18px; border: 1px solid #ddd; border-radius: 10px;
+         background: #fff; min-height: 120px; font-size: 18px; line-height: 2.1; }
+  #out:empty::before { content: "Hasil anotasi muncul di sini — arahkan kursor ke kata untuk melihat definisi."; opacity: 0.5; font-size: 15px; }
+  .meta { margin-top: 14px; font-size: 12.5px; opacity: 0.6; }
+  .row { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+  label { font-size: 13px; opacity: 0.85; }
+  .artikel { margin-top: 34px; padding: 18px; border: 1px solid #ddd; border-radius: 10px; background: #fff;
+             font-size: 18px; line-height: 2.1; }
+  .artikel h2 { font-size: 1.15em; margin: 0 0 10px; }
+  pre.snippet { background: #1b1b26; color: #d6e4ff; padding: 14px; border-radius: 8px; font-size: 13px; overflow-x: auto; }
+</style>
+</head>
+<body>
+<main>
+  <h1>CC-CIDICT Annotator <small>demo v2 — pinyin inline + popup definisi (hover)</small></h1>
+
+  <textarea id="in">我去中国旅游。这个字段必须是非空的。这里有水，你可以喝。我想来这里看看。我在北京大学学习生命科学。</textarea>
+  <div class="row">
+    <button id="go">Annotate</button>
+    <label><input type="checkbox" id="ckInline" checked> pinyin inline</label>
+    <label><input type="checkbox" id="ckPopup" checked> popup</label>
+    <label><input type="checkbox" id="ckTheme"> tema gelap (popup)</label>
+  </div>
+
+  <div id="loader">LOADING...</div>
+
+  <div id="out"></div>
+  <div class="meta" id="meta"></div>
+
+  <div class="artikel" id="artikel">
+    <h2>Contoh artikel</h2>
+    <p>今天，我突然有一个想法。这个特别好的想法让我觉得非常快乐。</p>
+    <p>我想给好朋友做一张中文贺卡。虽然我的中文不好，但是我想用中文写“祝你快乐”。</p>
+  </div>
+
+  <h2>Integrasi satu script</h2>
+  <pre class="snippet">&lt;script src="//api.cidict.org/static/cidict-annotator.min.js" charset="UTF-8"&gt;&lt;/script&gt;
+&lt;script&gt;cidict.annotate('.artikel', { theme: 'light' });&lt;/script&gt;</pre>
+</main>
+
+<script src="/static/cidict-annotator.min.js" charset="UTF-8"></script>
+<script>
+  function run() {
+    var text = document.getElementById("in").value;
+    cidict.annotateText(text).then(function (html) {
+      document.getElementById("out").innerHTML = html;
+    }).catch(function (err) {
+      document.getElementById("out").textContent = "Error: " + err.message;
+    });
+  }
+
+  document.getElementById("go").addEventListener("click", run);
+  document.getElementById("ckInline").addEventListener("change", function (e) {
+    cidict.showInline(e.target.checked);
+  });
+  document.getElementById("ckPopup").addEventListener("change", function (e) {
+    cidict.showPopups(e.target.checked);
+  });
+  document.getElementById("ckTheme").addEventListener("change", function (e) {
+    cidict.theme(e.target.checked ? "dark" : "light");
+  });
+
+  cidict.health().then(function (h) {
+    document.getElementById("meta").textContent =
+      "backend v" + h.version + " — " + h.entries + " entri aktif — HMM " +
+      (h.hmm ? "on" : "off") + " — force-split: " + (h.split_words || []).join(", ");
+  }).catch(function () {});
+
+  // Contoh integrasi ala pemakaian nyata: anotasi paragraf artikel.
+  cidict.annotate("#artikel p", { theme: "dark", loading: '#loader' });
+  run();
+</script>
+</body>
+</html>

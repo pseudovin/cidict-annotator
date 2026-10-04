@@ -1,0 +1,18 @@
+# Prioritas bacaan pinyin — paksa bacaan pilihan untuk suatu kata.
+#
+# Format: <kata> = <pinyin>
+#   <kata>   : bentuk simplified atau tradisional (padanannya ikut otomatis)
+#   <pinyin> : dicocokkan dengan pinyin_marks, lalu pinyin_toneless,
+#              lalu pinyin bernomor. Contoh: "hē", "he", atau "he1".
+#
+# Dipakai untuk kasus yang tidak bisa diputuskan oleh aturan default
+# (bacaan huruf kecil didahulukan, lalu frekuensi tertinggi), misalnya
+# 喝 yang punya "hè" (berteriak) dan "hē" (minum) — keduanya huruf kecil.
+#
+# Baris kosong, komentar (// atau #), dan baris tak valid diabaikan
+# (baris tak valid diperingatkan di log server).
+#
+# Muat ulang tanpa restart: POST /api/seg-reload
+
+喝 = hē
+//那 = nà
