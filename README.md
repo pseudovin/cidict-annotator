@@ -213,9 +213,9 @@ cidict.annotate('.artikel', { loading: { target: '#loader', show: 'flex' } });
 | `cidict.setDockAlign(align)` | `'left'` \| `'right'` posisi dock di desktop. Mengembalikan `this` |
 | `cidict.showInline(bool)` | Nyalakan/matikan pinyin inline. Mengembalikan `this` |
 | `cidict.togglePinyin(bool?)` | Toggle pinyin inline. Tanpa argumen = balik status; dengan boolean = set eksplisit. Mengembalikan `this` |
-| `cidict.theme(name)` | `'light'` \| `'dark'`. Mengembalikan `this` |
 | `cidict.toggleTheme(name?)` | Toggle theme popup light ↔ dark. Tanpa argumen = balik status; dengan `'light'`/`'dark'` = set eksplisit. Mengembalikan `this` |
 | `cidict.toggleHanzi(bool?)` | Toggle Simplified ↔ Traditional. Tanpa argumen = balik status; dengan boolean = set eksplisit. Instan (tanpa request) karena bentuk tradisional sudah di-render sebagai atribut `data-trad` pada tiap `<ruby>`. Mengembalikan `this` |
+| `cidict.theme(name)` | `'light'` \| `'dark'`. Mengembalikan `this` |
 | `cidict.configure(options)` | Set opsi global. Mengembalikan `this` |
 | `cidict.supported()` | `true` bila `window.fetch` tersedia |
 | `cidict.destroy()` | Bersihkan anotasi, listener, popup, dan CSS. Mengembalikan `this` |

@@ -6,15 +6,16 @@
  *
  * - Pinyin inline via <ruby>/<rt> bawaan browser (bisa dimatikan).
  * - Toggle Simplified <-> Traditional instan via atribut data-trad.
- * - Popup definisi (client 2.0.0, final stable):
+ * - Popup definisi (client 2.0.1):
  *   displayMode 'popup' (default) | 'docked' | 'both' — hanya setter
  *   setDisplayMode(), tanpa toggle. Hanzi selalu bisa di-hover (desktop)
  *   dan di-klik/tap.
  *   - Hover (desktop): popup transien — 1 reading utama + maks 4 definisi;
  *     bila konten terpotong tampil notice "Klik hanzi untuk info lengkap".
  *     Popup langsung tertutup begitu pointer keluar dari hanzi.
- *   - Klik: mode 'popup' = popup terpin (semua reading, tombol ×, bisa
- *     scroll; tanpa tombol copy — user seleksi teks manual); mode 'docked'
+ *   - Klik: mode 'popup' = popup terpin (semua reading, bisa scroll;
+ *     footer cidict.org selalu di bawah dan tidak ikut scroll — 2.0.1;
+ *     tanpa tombol copy — user seleksi teks manual); mode 'docked'
  *     = panel dock tampil/update; mode 'both' = pinned-popup + dock
  *     bersamaan (desktop).
  *   - Popup terpin bersifat persisten: hover ke hanzi lain tidak
@@ -51,7 +52,7 @@
 (function (global) {
   'use strict';
 
-  var VERSION = '2.0.0';
+  var VERSION = '2.0.1';
 
   var defaults = {
     apiBase: null,      // null = origin dari script ini (atau '' = origin halaman)
@@ -284,7 +285,6 @@
       block.appendChild(ul);
       frag.appendChild(block);
     });
-    frag.appendChild(creditEl());
     return frag;
   }
 
@@ -407,6 +407,9 @@
     var body = el('div', 'cidict-pinned-body');
     body.appendChild(buildPopupContent(word, entry));
     popup.appendChild(body);
+    // Footer sebagai anak langsung popup (seperti mode hover): margin tidak
+    // collapse dengan isi body sehingga posisi footer identik di kedua mode.
+    popup.appendChild(creditEl());
     popup.style.visibility = 'hidden'; // ukur dulu sebelum tampil
     placePopup(popup, ruby);
     popup.style.visibility = 'visible';
