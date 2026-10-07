@@ -219,7 +219,7 @@ cidict.annotate('.artikel', { loading: { target: '#loader', show: 'flex' } });
 | `cidict.configure(options)` | Set opsi global. Mengembalikan `this` |
 | `cidict.supported()` | `true` bila `window.fetch` tersedia |
 | `cidict.destroy()` | Bersihkan anotasi, listener, popup, dan CSS. Mengembalikan `this` |
-| `cidict.version` | Versi client, misalnya `'2.4.0'` |
+| `cidict.version` | Versi client, misalnya `'2.0.0'` |
 
 `window.CidictAnnotator` tersedia sebagai alias.
 
@@ -234,26 +234,36 @@ di-load. Opsi eksplisit yang diberikan ke `annotate()`/`annotateText()`
 tetap menang atas nilai tersimpan untuk pemanggilan tersebut, tetapi
 tidak menimpa simpanan.
 
-Interaksi definisi (client 2.4.0): tidak ada opsi `trigger` — hanzi
-selalu bisa di-hover (desktop) dan di-klik/tap.
+Interaksi definisi (client 2.0.0, final stable): tidak ada opsi `trigger` — hanzi
+selalu bisa di-hover (desktop) dan di-klik/tap. Pinyin inline `<rt>`
+yang sangat panjang di-wrap via CSS agar tidak keluar container.
 
 - **Mode `popup`** (default). Hover (desktop): popup transien berisi 1
   reading utama + maks 4 definisi; bila konten terpotong tampil notice
   "Klik hanzi untuk info lengkap". Popup langsung tertutup begitu
   pointer keluar dari hanzi. Klik: popup terpin (semua reading stacked,
-  tombol × dan salin, bisa scroll).
-- **Mode `docked`**. Klik (atau hover di desktop): panel dock
-  tampil/update — satu reading per tampilan dengan tombol ‹ › pindah
-  reading, navigasi antar hanzi dengan tombol ← → (juga via keyboard
-  saat fokus di ruby/dock), indikator hanzi aktif. Dock fixed bottom di
-  mobile, align kiri/kanan di desktop via `dockAlign`.
+  tombol ×, bisa scroll; persisten — hover ke hanzi lain tidak
+  menutupnya; tanpa tombol copy, seleksi teks manual).
+- **Mode `docked`**. Hanya via klik (hover tidak meng-update dock).
+  Baris atas: navigasi kata « 1/97 » (counter di tengah) + tombol ×;
+  hanzi di baris sendiri terpusat (muat hanzi panjang); pinyin di baris
+  sendiri (wrap bila panjang); navigator bacaan `< 1/4 >` di bawah
+  pinyin, hanya tampil bila bacaan > 1; indikator hanzi aktif (juga via
+  keyboard saat fokus di ruby/dock); tanpa tombol copy. Tombol ⇄ untuk
+  beralih mode hanya di mobile (ikon saja). Mobile: dock full-width
+  bottom sheet, tinggi fix 35vh, isi scroll. Desktop: align kiri/kanan
+  via `dockAlign`. Semua tombol tinggi seragam 30px, font Arial.
 - **Mode `both`**. Desktop: hover → popup transien; klik → pinned-popup
-  + dock tampil bersamaan. Bila dock sedang aktif, notice di popup hover
-  diganti mengarahkan ke dock ("Lihat selengkapnya di panel dock, atau
-  klik hanzi"). Mobile (terdeteksi via `matchMedia('(hover: none)')`,
-  tap = klik): tap menampilkan pinned-popup + tombol "Mode dock" untuk
-  beralih; selama dock aktif, popup tidak tampil. Pindah mode via icon
-  dua arah (popup ↔ dock); pilihan tersimpan sebagai preferensi visitor.
+  + dock tampil bersamaan (tanpa tombol ⇄ — keduanya memang tampil).
+  Notice di popup hover selalu "Klik hanzi untuk info lengkap" (satu
+  teks universal). Mobile (terdeteksi via `matchMedia('(hover: none)')`,
+  tap = klik): tap menampilkan pinned-popup + tombol ⇄/× untuk
+  beralih/menutup; selama dock aktif, popup tidak tampil. Pindah mode
+  via icon ⇄ dua arah (popup ⇄ dock); pilihan tersimpan sebagai
+  preferensi visitor. Footer "cidict.org" di popup/dock adalah link
+  (buka tab baru, unselectable); di dock mobile selalu menempel di
+  dasar panel. Di desktop, pinned-popup tanpa tombol (tutup via klik
+  di luar / Esc).
 - `showPopups(false)` mematikan seluruh UI definisi (transien, terpin,
   dock). `Enter`/`Space` pada kata yang difokuskan = klik,
   `Escape` menutup popup lalu dock.

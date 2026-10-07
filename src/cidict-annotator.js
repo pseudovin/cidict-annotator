@@ -6,23 +6,39 @@
  *
  * - Pinyin inline via <ruby>/<rt> bawaan browser (bisa dimatikan).
  * - Toggle Simplified <-> Traditional instan via atribut data-trad.
- * - Popup definisi (client 2.4.0):
+ * - Popup definisi (client 2.0.0, final stable):
  *   displayMode 'popup' (default) | 'docked' | 'both' — hanya setter
  *   setDisplayMode(), tanpa toggle. Hanzi selalu bisa di-hover (desktop)
  *   dan di-klik/tap.
  *   - Hover (desktop): popup transien — 1 reading utama + maks 4 definisi;
  *     bila konten terpotong tampil notice "Klik hanzi untuk info lengkap".
  *     Popup langsung tertutup begitu pointer keluar dari hanzi.
- *   - Klik: mode 'popup' = popup terpin (semua reading, tombol x/copy,
- *     bisa scroll); mode 'docked' = panel dock tampil/update; mode 'both'
- *     = pinned-popup + dock bersamaan (desktop).
+ *   - Klik: mode 'popup' = popup terpin (semua reading, tombol ×, bisa
+ *     scroll; tanpa tombol copy — user seleksi teks manual); mode 'docked'
+ *     = panel dock tampil/update; mode 'both' = pinned-popup + dock
+ *     bersamaan (desktop).
+ *   - Popup terpin bersifat persisten: hover ke hanzi lain tidak
+ *     menutup/menggantikannya; klik hanzi lain memindahkan pin.
+ *   - Dock HANYA via klik di semua mode (hover tidak meng-update dock —
+ *     2.4.1, agar cursor yang melintasi hanzi lain tidak sengaja
+ *     mengganti isi dock).
  *   - Mobile (matchMedia('(hover: none)')): tap = klik; mode 'both' tap
  *     menampilkan pinned-popup + icon pindah ke mode dock; selama dock
  *     aktif popup tidak tampil. Pindah mode via icon dua arah (popup <->
  *     dock), tersimpan di localStorage.
- *   - Dock: satu reading per tampilan (tombol ‹ ›), navigasi antar hanzi
- *     (tombol/ketuk <- ->), indikator hanzi aktif; fixed bottom di mobile,
- *     align kiri/kanan di desktop via dockAlign ('left'|'right').
+ *   - Dock (revamp 2.4.3): navigasi kata [«] 1/97 [»] di baris atas
+ *     (counter di tengah) + tombol ×; hanzi di baris sendiri terpusat
+ *     (muat hanzi panjang); pinyin di baris sendiri (wrap bila sangat
+ *     panjang) + navigator bacaan [<] 1/4 [>] di bawahnya, hanya tampil
+ *     bila bacaan > 1; tombol switch mode ⇄ hanya di mobile (ikon saja,
+ *     sama di dock & popup terpin); indikator hanzi aktif.
+ *     Mobile: full-width bottom sheet, tinggi fix 35vh, body scroll;
+ *     footer cidict.org selalu di paling bawah (link, unselectable).
+ *     Desktop: align kiri/kanan via dockAlign. Semua tombol tinggi
+ *     seragam 30px, font Arial; tanpa tombol copy (seleksi manual).
+ *   - Pinyin inline <rt> yang sangat panjang di-wrap via CSS
+ *     (overflow-wrap:anywhere) agar tidak keluar container — tanpa
+ *     olah DOM.
  * - Theme popup/dock: 'light' (default) | 'dark'.
  * - Theme popup: 'light' (default) | 'dark'.
  * - Preferensi (showInline, showPopups, theme, trad) tersimpan otomatis
@@ -35,7 +51,7 @@
 (function (global) {
   'use strict';
 
-  var VERSION = '2.4.0';
+  var VERSION = '2.0.0';
 
   var defaults = {
     apiBase: null,      // null = origin dari script ini (atau '' = origin halaman)
@@ -130,11 +146,22 @@
     return e;
   }
 
+  // Footer "cidict.org": unselectable tapi bisa diklik (buka tab baru).
+  function creditEl() {
+    var a = document.createElement('a');
+    a.className = 'cidict-credit';
+    a.setAttribute('href', 'https://cidict.org');
+    a.setAttribute('target', '_blank');
+    a.setAttribute('rel', 'noopener');
+    a.textContent = 'cidict.org';
+    return a;
+  }
+
   // ---------- CSS (di-inject sekali) ----------
 
   var CSS = [
     'ruby.cidict-rb{ruby-align:center;border-radius:2px;margin:0 .12ex}',
-    'ruby.cidict-rb>rt{font-size:.68em;line-height:1.15;opacity:.78;user-select:none;-webkit-user-select:none}',
+    'ruby.cidict-rb>rt{font-size:.68em;line-height:1.15;opacity:.78;user-select:none;-webkit-user-select:none;overflow-wrap:anywhere;word-break:break-all}',
     '.cidict-no-inline ruby.cidict-rb>rt{display:none}',
     'ruby.cidict-rb.cidict-hl{background:rgba(255,196,0,.35)}',
     '#cidict-popup{position:fixed;z-index:1000000;visibility:hidden;max-width:300px;background:#fff;border:1px solid #ccc;border-radius:8px;padding:12px;box-shadow:0 4px 12px rgba(0,0,0,.15);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-size:14px;line-height:1.5;color:#222;text-align:left}',
@@ -142,41 +169,48 @@
     '#cidict-popup .cidict-trad{font-size:.78em;color:#888}',
     '#cidict-popup .cidict-reading{margin-bottom:7px}',
     '#cidict-popup .cidict-reading:last-of-type{margin-bottom:4px}',
-    '#cidict-popup .cidict-pinyin{color:#1950d1;font-size:15px;font-weight:600;margin-bottom:4px}',
+    '#cidict-popup .cidict-pinyin{color:#1950d1;font-size:15px;font-weight:600;margin-bottom:4px;overflow-wrap:anywhere}',
     '#cidict-popup .cidict-defs{margin:0;padding-left:1.3em;color:#444}',
     '#cidict-popup .cidict-defs li{margin-bottom:2px}',
-    '#cidict-popup .cidict-credit{font-size:10px;color:#999;text-align:center;margin-top:6px}',
+    '#cidict-popup .cidict-credit{display:block;font-size:10px;color:#999;text-align:center;margin-top:6px;text-decoration:none;cursor:pointer;user-select:none;-webkit-user-select:none}',
     '#cidict-popup[data-popup-mode="hover"] .cidict-hover-body{max-height:190px;overflow:hidden}',
     '#cidict-popup[data-popup-mode="pinned"]{max-height:min(70vh,420px);display:flex;flex-direction:column}',
     '#cidict-popup[data-popup-mode="pinned"] .cidict-pinned-body{overflow-y:auto;overscroll-behavior:contain}',
     '#cidict-popup .cidict-actions{display:flex;gap:6px;justify-content:flex-end;margin-bottom:8px}',
-    '#cidict-popup .cidict-iconbtn{border:1px solid #ccc;background:#f7f7f7;border-radius:6px;padding:2px 9px;font-size:13px;line-height:1.6;cursor:pointer;color:#333;font-family:inherit}',
+    '#cidict-popup .cidict-iconbtn{border:1px solid #ccc;background:#f7f7f7;border-radius:6px;height:30px;min-width:32px;padding:0 8px;font-size:13px;cursor:pointer;color:#333;font-family:Arial,sans-serif;text-align:center;display:inline-flex;align-items:center;justify-content:center}',
     '#cidict-popup .cidict-iconbtn:hover{background:#eee}',
-    '#cidict-popup .cidict-notice{font-size:12px;color:#666;background:#f6f6f6;border:1px dashed #bbb;border-radius:6px;padding:6px 8px;margin:6px 0 2px;text-align:center}',
+    '#cidict-popup .cidict-iconbtn.cidict-close{font-size:15px;font-weight:700;min-width:32px;padding:3px 10px}',
+    // Notice hover: satu baris teks kecil — clean, tanpa box (2.4.1).
+    '#cidict-popup .cidict-notice{font-size:11.5px;color:#888;text-align:center;margin:6px 0 0}',
     '#cidict-popup[data-cidict-theme="dark"] .cidict-iconbtn{background:#3d3d3d;border-color:#666;color:#eee}',
     '#cidict-popup[data-cidict-theme="dark"] .cidict-iconbtn:hover{background:#4a4a4a}',
-    '#cidict-popup[data-cidict-theme="dark"] .cidict-notice{background:#3a3a3a;border-color:#666;color:#ccc}',
+    '#cidict-popup[data-cidict-theme="dark"] .cidict-notice{color:#aaa}',
     '#cidict-dock{position:fixed;z-index:1000000;background:#fff;border:1px solid #ccc;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.18);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-size:14px;line-height:1.5;color:#222;text-align:left;display:none;max-height:70vh}',
     '#cidict-dock.open{display:flex;flex-direction:column}',
-    '#cidict-dock.dock-bottom{left:8px;right:8px;bottom:8px;max-height:46vh}',
+    '#cidict-dock.dock-bottom{left:0;right:0;bottom:0;border-radius:12px 12px 0 0;height:35vh}',
     '#cidict-dock.dock-left{top:12%;left:8px;width:300px;max-width:calc(100vw - 16px)}',
     '#cidict-dock.dock-right{top:12%;right:8px;width:300px;max-width:calc(100vw - 16px)}',
-    '#cidict-dock .cidict-dock-head{display:flex;align-items:center;gap:4px;padding:8px 10px;border-bottom:2px solid #eee}',
-    '#cidict-dock .cidict-dock-word{font-size:18px;font-weight:600;margin-right:auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
-    '#cidict-dock .cidict-dock-count{font-size:11px;color:#888;margin-right:2px;white-space:nowrap}',
-    '#cidict-dock .cidict-dockbtn{border:1px solid #ccc;background:#f7f7f7;border-radius:6px;min-width:28px;padding:2px 6px;font-size:13px;cursor:pointer;color:#333;font-family:inherit}',
+    '#cidict-dock .cidict-dock-top{display:flex;align-items:center;gap:6px;padding:8px 10px;border-bottom:2px solid #eee}',
+    '#cidict-dock .cidict-dock-hanzinav{flex:1;display:flex;align-items:center;gap:6px;min-width:0}',
+    '#cidict-dock .cidict-dock-hanzicount{flex:1;text-align:center;font-size:12px;color:#555;white-space:nowrap}',
+    '#cidict-dock .cidict-dock-word{font-size:22px;font-weight:700;text-align:center;line-height:1.3;padding:8px 12px 2px;overflow-wrap:break-word}',
+    '#cidict-dock .cidict-dock-pinyin{color:#1950d1;font-size:17px;font-weight:600;text-align:center;line-height:1.4;padding:8px 12px 0;overflow-wrap:anywhere}',
+    '#cidict-dock .cidict-dock-reading{display:flex;align-items:center;justify-content:center;gap:10px;padding:4px 10px 6px}',
+    '#cidict-dock .cidict-dock-count{font-size:11px;color:#888;white-space:nowrap}',
+    '#cidict-dock .cidict-dockbtn{border:1px solid #ccc;background:#f7f7f7;border-radius:6px;height:30px;min-width:32px;padding:0 8px;font-size:13px;cursor:pointer;color:#333;font-family:Arial,sans-serif;text-align:center;display:inline-flex;align-items:center;justify-content:center}',
     '#cidict-dock .cidict-dockbtn:hover{background:#eee}',
-    '#cidict-dock .cidict-dock-body{padding:10px 12px;overflow-y:auto;overscroll-behavior:contain}',
-    '#cidict-dock .cidict-dock-body .cidict-pinyin{color:#1950d1;font-size:15px;font-weight:600;margin-bottom:4px}',
+    '#cidict-dock .cidict-dockbtn.cidict-close{font-size:15px;font-weight:700;min-width:32px;padding:3px 10px}',
+    '#cidict-dock .cidict-dock-body{flex:1;min-height:0;padding:8px 12px;overflow-y:auto;overscroll-behavior:contain}',
     '#cidict-dock .cidict-dock-body .cidict-defs{margin:0;padding-left:1.3em;color:#444}',
     '#cidict-dock .cidict-dock-body .cidict-defs li{margin-bottom:2px}',
-    '#cidict-dock .cidict-credit{font-size:10px;color:#999;text-align:center;margin:4px 0 8px}',
+    '#cidict-dock .cidict-credit{display:block;flex-shrink:0;font-size:10px;color:#999;text-align:center;margin:4px 0 8px;text-decoration:none;cursor:pointer;user-select:none;-webkit-user-select:none}',
     '#cidict-dock[data-cidict-theme="dark"]{background:#2d2d2d;border-color:#555;color:#eee}',
-    '#cidict-dock[data-cidict-theme="dark"] .cidict-dock-head{border-bottom-color:#555}',
-    '#cidict-dock[data-cidict-theme="dark"] .cidict-dock-count{color:#aaa}',
+    '#cidict-dock[data-cidict-theme="dark"] .cidict-dock-top{border-bottom-color:#555}',
+    '#cidict-dock[data-cidict-theme="dark"] .cidict-dock-hanzinav{border-top-color:#555}',
+    '#cidict-dock[data-cidict-theme="dark"] .cidict-dock-count,#cidict-dock[data-cidict-theme="dark"] .cidict-dock-hanzicount{color:#aaa}',
     '#cidict-dock[data-cidict-theme="dark"] .cidict-dockbtn{background:#3d3d3d;border-color:#666;color:#eee}',
     '#cidict-dock[data-cidict-theme="dark"] .cidict-dockbtn:hover{background:#4a4a4a}',
-    '#cidict-dock[data-cidict-theme="dark"] .cidict-dock-body .cidict-pinyin{color:#7aa5ff}',
+    '#cidict-dock[data-cidict-theme="dark"] .cidict-dock-pinyin{color:#7aa5ff}',
     '#cidict-dock[data-cidict-theme="dark"] .cidict-dock-body .cidict-defs{color:#ddd}',
     '#cidict-popup[data-cidict-theme="dark"]{background:#2d2d2d;border-color:#555;color:#eee}',
     '#cidict-popup[data-cidict-theme="dark"] .cidict-head{border-bottom-color:#555}',
@@ -250,7 +284,7 @@
       block.appendChild(ul);
       frag.appendChild(block);
     });
-    frag.appendChild(el('div', 'cidict-credit', 'cidict.org'));
+    frag.appendChild(creditEl());
     return frag;
   }
 
@@ -295,7 +329,7 @@
       body.appendChild(block);
     }
     frag.appendChild(body);
-    frag.appendChild(el('div', 'cidict-credit', 'cidict.org'));
+    frag.appendChild(creditEl());
     return { frag: frag, body: body };
   }
 
@@ -308,11 +342,9 @@
     return bodyEl.scrollHeight > bodyEl.clientHeight + 2;
   }
 
-  // Teks notice kontekstual: bila dock sedang aktif, arahkan ke dock
-  // (tanpa kata "bawah" karena dock bisa di kiri/kanan di desktop).
+  // Teks notice universal dan ringkas (2.4.1): satu teks untuk semua
+  // kasus — tidak ada varian "panel dock" lagi.
   function hoverNoticeText() {
-    if (opts.displayMode === 'both' && dockActive)
-      return 'Lihat selengkapnya di panel dock, atau klik hanzi';
     return 'Klik hanzi untuk info lengkap';
   }
 
@@ -340,29 +372,9 @@
     refreshHl();
   }
 
-  function copyEntry(word, entry) {
-    var lines = [word + (entry.t ? ' [' + entry.t + ']' : '')];
-    (entry.r || []).forEach(function (rd) {
-      if (rd.y) lines.push(rd.y);
-      (rd.d || []).forEach(function (d, j) { lines.push((j + 1) + '. ' + d); });
-    });
-    var txt = lines.join('\n');
-    function fallback() {
-      var ta = document.createElement('textarea');
-      ta.value = txt;
-      document.body.appendChild(ta);
-      ta.select();
-      try { document.execCommand('copy'); } catch (e) { /* abaikan */ }
-      document.body.removeChild(ta);
-    }
-    if (navigator.clipboard && navigator.clipboard.writeText)
-      navigator.clipboard.writeText(txt).catch(fallback);
-    else fallback();
-  }
-
-  // Popup terpin: semua reading stacked, tombol x + copy, bisa scroll.
+  // Popup terpin: semua reading stacked, tombol ×, bisa scroll.
   // Di mode 'both' pada perangkat tanpa hover, tampil juga tombol pindah
-  // ke mode dock.
+  // ke mode dock. Tanpa tombol copy (2.4.1): user seleksi teks manual.
   function showPinnedPopup(ruby) {
     if (!opts.showPopups) return;
     var word = ruby.getAttribute('data-w');
@@ -372,31 +384,26 @@
     popup.dataset.cidictTheme = opts.theme;
     popup.dataset.popupMode = 'pinned';
     popup.innerHTML = '';
-    var actions = el('div', 'cidict-actions');
-    if (opts.displayMode === 'both' && noHover) {
-      var btnDock = el('button', 'cidict-iconbtn', '\u2913 Mode dock');
-      btnDock.setAttribute('title', 'Beralih ke mode dock');
-      btnDock.addEventListener('click', function (ev) {
+    // Baris tombol hanya di mobile (2.0.0): di desktop pinned-popup
+    // tidak perlu tombol close (tutup via klik di luar / Esc).
+    if (noHover) {
+      var actions = el('div', 'cidict-actions');
+      var btnSwitch = el('button', 'cidict-iconbtn cidict-switch', '\u21C4');
+      btnSwitch.setAttribute('title', 'Beralih ke mode dock');
+      btnSwitch.addEventListener('click', function (ev) {
         ev.stopPropagation();
         cidict.setDisplayMode('docked');
       });
-      actions.appendChild(btnDock);
+      actions.appendChild(btnSwitch);
+      var btnClose = el('button', 'cidict-iconbtn cidict-close', '\u00D7');
+      btnClose.setAttribute('title', 'Tutup');
+      btnClose.addEventListener('click', function (ev) {
+        ev.stopPropagation();
+        hidePopup();
+      });
+      actions.appendChild(btnClose);
+      popup.appendChild(actions);
     }
-    var btnCopy = el('button', 'cidict-iconbtn', '\u29C9');
-    btnCopy.setAttribute('title', 'Salin definisi');
-    btnCopy.addEventListener('click', function (ev) {
-      ev.stopPropagation();
-      copyEntry(word, entry);
-    });
-    actions.appendChild(btnCopy);
-    var btnClose = el('button', 'cidict-iconbtn', '\u00D7');
-    btnClose.setAttribute('title', 'Tutup');
-    btnClose.addEventListener('click', function (ev) {
-      ev.stopPropagation();
-      hidePopup();
-    });
-    actions.appendChild(btnClose);
-    popup.appendChild(actions);
     var body = el('div', 'cidict-pinned-body');
     body.appendChild(buildPopupContent(word, entry));
     popup.appendChild(body);
@@ -421,40 +428,67 @@
 
   // ---------- dock ----------
 
+  // Struktur dock (2.4.2) — revamp:
+  //   [«]   1/97   [»]   [⇄] [×]   <- navigasi kata di atas (counter di
+  //                                   tengah), tombol mode selalu tampil
+  //              也                   <- hanzi di baris sendiri (muat
+  //                                   hanzi panjang), terpusat
+  //        [‹] yě [›]  1/2          <- navigasi bacaan mengapit pinyin
+  //        • definisi ...             <- body scroll
+  //            cidict.org
+  // « » = pindah kata; ‹ › = pindah bacaan; ⇄ = ganti mode (ikon saja,
+  // sama di dock & popup terpin).
   function ensureDock() {
     if (dockEl) return dockEl;
     dockEl = document.createElement('div');
     dockEl.id = 'cidict-dock';
     dockEl.dataset.cidictTheme = opts.theme;
-    var head = el('div', 'cidict-dock-head');
-    var word = el('span', 'cidict-dock-word');
-    head.appendChild(word);
-    var count = el('span', 'cidict-dock-count');
-    head.appendChild(count);
-    function navBtn(cls, label, title, fn) {
+    function mkBtn(cls, label, title, fn) {
       var b = el('button', 'cidict-dockbtn ' + cls, label);
       b.setAttribute('title', title);
       b.setAttribute('type', 'button');
       b.addEventListener('click', function (ev) { ev.stopPropagation(); fn(); });
-      head.appendChild(b);
       return b;
     }
-    navBtn('cidict-nav-hanzi-prev', '\u2190', 'Hanzi sebelumnya', function () { stepHanzi(-1); });
-    navBtn('cidict-nav-hanzi-next', '\u2192', 'Hanzi berikutnya', function () { stepHanzi(1); });
-    navBtn('cidict-nav-reading-prev', '\u2039', 'Reading sebelumnya', function () { stepReading(-1); });
-    navBtn('cidict-nav-reading-next', '\u203A', 'Reading berikutnya', function () { stepReading(1); });
-    var btnMode = navBtn('cidict-dock-switch', '\u29C9', 'Beralih ke mode popup', function () {
+    // Baris atas: navigasi kata + pindah mode + tutup.
+    var top = el('div', 'cidict-dock-top');
+    var hnav = el('div', 'cidict-dock-hanzinav');
+    hnav.appendChild(mkBtn('cidict-nav-hanzi-prev', '\u00AB', 'Hanzi sebelumnya', function () { stepHanzi(-1); }));
+    var hcount = el('span', 'cidict-dock-hanzicount');
+    hnav.appendChild(hcount);
+    hnav.appendChild(mkBtn('cidict-nav-hanzi-next', '\u00BB', 'Hanzi berikutnya', function () { stepHanzi(1); }));
+    top.appendChild(hnav);
+    // Tombol switch hanya di mobile (2.4.3): di desktop mode 'both'
+    // popup & dock memang tampil bersamaan, jadi tombol ini tak perlu.
+    var btnMode = mkBtn('cidict-dock-switch', '\u21C4', 'Beralih ke mode popup', function () {
       cidict.setDisplayMode('popup');
     });
-    btnMode.classList.add('cidict-dock-switch');
-    var btnClose = navBtn('cidict-dock-close', '\u00D7', 'Tutup dock', function () { hideDock(); });
-    dockEl.appendChild(head);
+    btnMode.style.display = noHover ? '' : 'none';
+    top.appendChild(btnMode);
+    top.appendChild(mkBtn('cidict-close', '\u00D7', 'Tutup dock', function () { hideDock(); }));
+    dockEl.appendChild(top);
+    // Hanzi di baris sendiri, terpusat — muat entry berhanzi panjang.
+    var word = el('div', 'cidict-dock-word');
+    dockEl.appendChild(word);
+    // Pinyin di baris sendiri (bisa wrap bila sangat panjang);
+    // navigator < 1/4 > di bawahnya, hanya bila bacaan > 1 (2.4.3).
+    var pinyin = el('div', 'cidict-dock-pinyin');
+    dockEl.appendChild(pinyin);
+    var reading = el('div', 'cidict-dock-reading');
+    reading.appendChild(mkBtn('cidict-nav-reading-prev', '\u2039', 'Bacaan sebelumnya', function () { stepReading(-1); }));
+    var count = el('span', 'cidict-dock-count');
+    reading.appendChild(count);
+    reading.appendChild(mkBtn('cidict-nav-reading-next', '\u203A', 'Bacaan berikutnya', function () { stepReading(1); }));
+    dockEl.appendChild(reading);
     var body = el('div', 'cidict-dock-body');
     dockEl.appendChild(body);
-    dockEl.appendChild(el('div', 'cidict-credit', 'cidict.org'));
+    dockEl.appendChild(creditEl());
     document.body.appendChild(dockEl);
     dockEl._word = word;
+    dockEl._pinyin = pinyin;
+    dockEl._readingRow = reading;
     dockEl._count = count;
+    dockEl._hcount = hcount;
     dockEl._body = body;
     dockEl._switch = btnMode;
     return dockEl;
@@ -484,10 +518,14 @@
     var dock = ensureDock();
     dock.dataset.cidictTheme = opts.theme;
     dock._word.textContent = word + (entry.t ? ' [' + entry.t + ']' : '');
-    dock._count.textContent = n > 1 ? ((dockReadingIdx + 1) + '/' + n) : '';
+    dock._pinyin.textContent = rd.y || '';
+    dock._readingRow.style.display = n > 1 ? '' : 'none';
+    dock._count.textContent = (dockReadingIdx + 1) + '/' + n;
+    var list = allRubies();
+    var hi = list.indexOf(dockFor);
+    dock._hcount.textContent = hi >= 0 ? ((hi + 1) + '/' + list.length) : '';
     var body = dock._body;
     body.innerHTML = '';
-    body.appendChild(el('div', 'cidict-pinyin', rd.y || ''));
     var ul = el('ul', 'cidict-defs');
     (rd.d || []).forEach(function (d) {
       var li = document.createElement('li');
@@ -495,8 +533,6 @@
       ul.appendChild(li);
     });
     body.appendChild(ul);
-    // Icon pindah mode hanya relevan di mode 'both'.
-    dock._switch.style.display = (opts.displayMode === 'both') ? '' : 'none';
   }
 
   function showDock(ruby) {
@@ -856,10 +892,18 @@
     // Instant (tanpa delay): hover langsung membuka popup transien.
     // Di perangkat tanpa hover (mobile), tap langsung ditangani onClick
     // sebagai pinned-popup — tidak ada fase hover.
+    // 2.4.1:
+    // - Popup terpin bersifat persisten: hover ke hanzi lain tidak
+    //   menutup/menggantikannya (klik hanzi lain memindahkan pin).
+    // - Dock HANYA via klik di semua mode: hover tidak meng-update dock,
+    //   agar cursor yang melintasi hanzi lain tidak sengaja mengganti
+    //   isi dock yang sedang dipelajari.
     if (!opts.showPopups || noHover) return;
+    if (popupState === 'pinned') return;
+    // Mode docked: hover tidak melakukan apa-apa (dock hanya via klik).
+    if (opts.displayMode === 'docked') return;
     var ruby = closestRuby(e.target);
     if (!ruby || ruby === popupFor) return;
-    if (opts.displayMode === 'docked') { showDock(ruby); return; }
     showHoverPopup(ruby);
   }
 

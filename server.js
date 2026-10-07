@@ -52,7 +52,7 @@ function env(key, dflt) {
   return process.env[key] !== undefined ? process.env[key] : dflt;
 }
 
-const VERSION = '0.2.14';
+const VERSION = '1.0.0';
 const PORT = Number.parseInt(env('PORT', '3100'), 10) || 3100;
 // Path relatif dihitung dari direktori project (bukan cwd), agar stabil
 // dijalankan dari mana pun.
