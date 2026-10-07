@@ -1,0 +1,15 @@
+{
+  "manifestVersion": 2,
+  "version": 27,
+  "url": "https://app.cidict.org/cc-cidict-db-v27.zip",
+  "md5": "d0e81663daf9f25da5cdf2181f6a6c3a",
+  "size": 40099239,
+  "databaseUrl": "https://app.cidict.org/cc-cidict-v27.db",
+  "databaseMd5": "d8475971bd505d9832a1cc697e5969c1",
+  "databaseSha256": "ca18c30df9a64cd0b33ece0f6b26ac2701d6098686070b404c158f8cb9f8a902",
+  "databaseSize": 77074432,
+  "entryCount": 125626,
+  "definitionCount": 195777,
+  "ftsRowCount": 125626,
+  "releasedAt": "2026-09-27T08:12:00Z"
+}
