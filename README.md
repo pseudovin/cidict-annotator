@@ -177,7 +177,9 @@ global via `configure`. Opsi per pemanggilan menimpa opsi global.
 |---|---|---|
 | `apiBase` | `null` | Base URL API. `null` = origin script ini; `''` = origin halaman |
 | `theme` | `'light'` | Tema popup: `'light'` \| `'dark'` |
-| `showPopups` | `true` | Tampilkan popup definisi (hover/tap/keyboard) |
+| `showPopups` | `true` | Tampilkan popup definisi (hover/klik/tap). `false` mematikan seluruh UI definisi |
+| `displayMode` | `'popup'` | Mode tampilan definisi: `'popup'` \| `'docked'` \| `'both'` |
+| `dockAlign` | `'right'` | Posisi dock di desktop: `'left'` \| `'right'` (mobile selalu fixed bottom) |
 | `showInline` | `true` | Tampilkan pinyin inline di atas kata |
 | `chunkSize` | `2000` | Pecah teks panjang per N karakter (`0` = nonaktif) |
 | `maxConcurrency` | `3` | Jumlah maksimum fetch paralel per annotate |
@@ -206,7 +208,9 @@ cidict.annotate('.artikel', { loading: { target: '#loader', show: 'flex' } });
 | `cidict.unannotate(selector?)` | Kembalikan elemen ke teks biasa. Mengembalikan `this` |
 | `cidict.lookup(word)` | Mengembalikan Promise `{ word, def }` dari `/api/lookup` |
 | `cidict.health()` | Mengembalikan Promise `{ ok, version, entries, ... }` dari `/api/health` |
-| `cidict.showPopups(bool)` | Nyalakan/matikan popup. Mengembalikan `this` |
+| `cidict.showPopups(bool)` | Nyalakan/matikan popup. `false` mematikan seluruh UI definisi (popup transien, terpin, dock). Mengembalikan `this` |
+| `cidict.setDisplayMode(mode)` | `'popup'` \| `'docked'` \| `'both'`. Hanya setter (tanpa toggle); nilai tidak valid diabaikan. Pindah mode menyimpan preferensi visitor. Mengembalikan `this` |
+| `cidict.setDockAlign(align)` | `'left'` \| `'right'` posisi dock di desktop. Mengembalikan `this` |
 | `cidict.showInline(bool)` | Nyalakan/matikan pinyin inline. Mengembalikan `this` |
 | `cidict.togglePinyin(bool?)` | Toggle pinyin inline. Tanpa argumen = balik status; dengan boolean = set eksplisit. Mengembalikan `this` |
 | `cidict.theme(name)` | `'light'` \| `'dark'`. Mengembalikan `this` |
@@ -215,25 +219,44 @@ cidict.annotate('.artikel', { loading: { target: '#loader', show: 'flex' } });
 | `cidict.configure(options)` | Set opsi global. Mengembalikan `this` |
 | `cidict.supported()` | `true` bila `window.fetch` tersedia |
 | `cidict.destroy()` | Bersihkan anotasi, listener, popup, dan CSS. Mengembalikan `this` |
-| `cidict.version` | Versi client, misalnya `'2.3.0'` |
+| `cidict.version` | Versi client, misalnya `'2.4.0'` |
 
 `window.CidictAnnotator` tersedia sebagai alias.
 
 ### Preferensi tersimpan (localStorage)
 
-`showInline`, `showPopups`, `theme`, dan status Simplified/Traditional
-disimpan otomatis ke `localStorage` (satu objek JSON di kunci
-`cidict_prefs`) setiap kali diubah lewat `showInline()`, `showPopups()`,
-`theme()`, atau `toggleHanzi()`, lalu dipulihkan saat script di-load.
-Opsi eksplisit yang diberikan ke `annotate()`/`annotateText()` tetap
-menang atas nilai tersimpan untuk pemanggilan tersebut, tetapi tidak
-menimpa simpanan.
+`showInline`, `showPopups`, `theme`, status Simplified/Traditional,
+`displayMode`, dan `dockAlign` disimpan otomatis ke `localStorage` (satu
+objek JSON di kunci `cidict_prefs`) setiap kali diubah lewat
+`showInline()`, `showPopups()`, `theme()`, `toggleHanzi()`,
+`setDisplayMode()`, atau `setDockAlign()`, lalu dipulihkan saat script
+di-load. Opsi eksplisit yang diberikan ke `annotate()`/`annotateText()`
+tetap menang atas nilai tersimpan untuk pemanggilan tersebut, tetapi
+tidak menimpa simpanan.
 
-Interaksi popup: hover membuka popup secara instan di desktop; popup
-langsung tertutup begitu pointer keluar dari hanzi (hover pada popup
-tidak mempertahankannya, agar hanzi di belakang popup tetap terjangkau);
-tap/klik toggle di perangkat sentuh; `Enter`/`Space` pada kata yang
-difokuskan membuka popup, `Escape` menutupnya.
+Interaksi definisi (client 2.4.0): tidak ada opsi `trigger` — hanzi
+selalu bisa di-hover (desktop) dan di-klik/tap.
+
+- **Mode `popup`** (default). Hover (desktop): popup transien berisi 1
+  reading utama + maks 4 definisi; bila konten terpotong tampil notice
+  "Klik hanzi untuk info lengkap". Popup langsung tertutup begitu
+  pointer keluar dari hanzi. Klik: popup terpin (semua reading stacked,
+  tombol × dan salin, bisa scroll).
+- **Mode `docked`**. Klik (atau hover di desktop): panel dock
+  tampil/update — satu reading per tampilan dengan tombol ‹ › pindah
+  reading, navigasi antar hanzi dengan tombol ← → (juga via keyboard
+  saat fokus di ruby/dock), indikator hanzi aktif. Dock fixed bottom di
+  mobile, align kiri/kanan di desktop via `dockAlign`.
+- **Mode `both`**. Desktop: hover → popup transien; klik → pinned-popup
+  + dock tampil bersamaan. Bila dock sedang aktif, notice di popup hover
+  diganti mengarahkan ke dock ("Lihat selengkapnya di panel dock, atau
+  klik hanzi"). Mobile (terdeteksi via `matchMedia('(hover: none)')`,
+  tap = klik): tap menampilkan pinned-popup + tombol "Mode dock" untuk
+  beralih; selama dock aktif, popup tidak tampil. Pindah mode via icon
+  dua arah (popup ↔ dock); pilihan tersimpan sebagai preferensi visitor.
+- `showPopups(false)` mematikan seluruh UI definisi (transien, terpin,
+  dock). `Enter`/`Space` pada kata yang difokuskan = klik,
+  `Escape` menutup popup lalu dock.
 
 ## Deploy ke Hostinger Node.js Web App
 

@@ -16,5 +16,5 @@
     "build": "esbuild src/cidict-annotator.js --minify --outfile=dist/cidict-annotator.min.js"
   },
   "type": "module",
-  "version": "0.2.13"
+  "version": "0.2.14"
 }
