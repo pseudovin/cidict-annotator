@@ -4,8 +4,14 @@ node_modules/
 # Environment lokal (jangan commit; pakai .env.example sebagai acuan)
 .env
 
-# Data: cache persisten (besar, spesifik tiap mesin)
-annotate-cache.*
+# Data: file SQLite kamus + cache persisten (besar, spesifik tiap mesin)
+data/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
 
 # Log
 *.log
