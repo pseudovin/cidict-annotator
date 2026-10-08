@@ -1,65 +1,17 @@
-/* CC-CIDICT annotator client v2 — single file (CSS di-inject dari JS).
- *
- * Integrasi (satu script saja):
- *   <script src="//api.cidict.org/static/cidict-annotator.min.js" charset="UTF-8"></script>
- *   <script>cidict.annotate('.artikel', { theme: 'light' });</script>
- *
- * - Pinyin inline via <ruby>/<rt> bawaan browser (bisa dimatikan).
- * - Toggle Simplified <-> Traditional instan via atribut data-trad.
- * - Popup definisi (client 2.0.1):
- *   displayMode 'popup' (default) | 'docked' | 'both' — hanya setter
- *   setDisplayMode(), tanpa toggle. Hanzi selalu bisa di-hover (desktop)
- *   dan di-klik/tap.
- *   - Hover (desktop): popup transien — 1 reading utama + maks 4 definisi;
- *     bila konten terpotong tampil notice "Klik hanzi untuk info lengkap".
- *     Popup langsung tertutup begitu pointer keluar dari hanzi.
- *   - Klik: mode 'popup' = popup terpin (semua reading, bisa scroll;
- *     footer cidict.org selalu di bawah dan tidak ikut scroll — 2.0.1;
- *     tanpa tombol copy — user seleksi teks manual); mode 'docked'
- *     = panel dock tampil/update; mode 'both' = pinned-popup + dock
- *     bersamaan (desktop).
- *   - Popup terpin bersifat persisten: hover ke hanzi lain tidak
- *     menutup/menggantikannya; klik hanzi lain memindahkan pin.
- *   - Dock HANYA via klik di semua mode (hover tidak meng-update dock —
- *     2.4.1, agar cursor yang melintasi hanzi lain tidak sengaja
- *     mengganti isi dock).
- *   - Mobile (matchMedia('(hover: none)')): tap = klik; mode 'both' tap
- *     menampilkan pinned-popup + icon pindah ke mode dock; selama dock
- *     aktif popup tidak tampil. Pindah mode via icon dua arah (popup <->
- *     dock), tersimpan di localStorage.
- *   - Dock (revamp 2.4.3): navigasi kata [«] 1/97 [»] di baris atas
- *     (counter di tengah) + tombol ×; hanzi di baris sendiri terpusat
- *     (muat hanzi panjang); pinyin di baris sendiri (wrap bila sangat
- *     panjang) + navigator bacaan [<] 1/4 [>] di bawahnya, hanya tampil
- *     bila bacaan > 1; tombol switch mode ⇄ hanya di mobile (ikon saja,
- *     sama di dock & popup terpin); indikator hanzi aktif.
- *     Mobile: full-width bottom sheet, tinggi fix 35vh, body scroll;
- *     footer cidict.org selalu di paling bawah (link, unselectable).
- *     Desktop: align kiri/kanan via dockAlign. Semua tombol tinggi
- *     seragam 30px, font Arial; tanpa tombol copy (seleksi manual).
- *   - Pinyin inline <rt> yang sangat panjang di-wrap via CSS
- *     (overflow-wrap:anywhere) agar tidak keluar container — tanpa
- *     olah DOM.
- * - Theme popup/dock: 'light' (default) | 'dark'.
- * - Theme popup: 'light' (default) | 'dark'.
- * - Preferensi (showInline, showPopups, theme, trad) tersimpan otomatis
- *   di localStorage dan dipulihkan saat script di-load.
- * - Response API ringan: `tokens` hanya berisi token ber-hanzi.
- * - Teks panjang dipecah jadi chunk dan di-fetch paralel (chunkSize,
- *   maxConcurrency); ada indikator loading (opsi `loading`).
- * - Tanpa dependensi. Alias kompatibel: window.CidictAnnotator.
- */
+// CC-CIDICT annotator client — dokumentasi lengkap di README.md.
 (function (global) {
   'use strict';
 
-  var VERSION = '2.0.1';
+  var VERSION = '2.0.2';
 
   var defaults = {
     apiBase: null,      // null = origin dari script ini (atau '' = origin halaman)
     theme: 'light',     // 'light' | 'dark'  (theme popup & dock)
     showPopups: true,   // popup definisi saat hover/klik/tap
     showInline: true,   // pinyin inline di atas hanzi
-    displayMode: 'popup', // 'popup' | 'docked' | 'both' (mode tampilan definisi)
+    displayMode: 'popup', // 'popup' | 'docked' | 'both' (mode efektif)
+    displayModeDesktop: 'popup', // simpanan mode desktop
+    displayModeMobile: null,      // simpanan mode mobile (null = belum diatur)
     dockAlign: 'right',  // 'left' | 'right' (posisi dock di desktop; mobile selalu bottom)
     chunkSize: 2000,    // pecah teks panjang per N karakter (0 = nonaktif)
     maxConcurrency: 3,  // fetch paralel maks per annotate
@@ -69,12 +21,25 @@
   configure(defaults);
 
   // ---------- preferensi (localStorage) ----------
-  // showInline, showPopups, theme, dan trad disimpan otomatis setiap berubah
-  // dan dipulihkan saat script di-load. Opsi eksplisit di annotate() tetap
-  // menang atas nilai tersimpan.
+  // showInline, showPopups, theme, trad, displayMode, dan dockAlign disimpan
+  // otomatis setiap berubah dan dipulihkan saat script di-load.
+  // displayMode punya dua simpanan terpisah: desktop (`displayMode`) dan
+  // mobile (`displayModeMobile`) — ganti mode di HP tidak mengubah desktop.
 
   var useTrad = false; // tampilkan hanzi tradisional
   var PREF_KEY = 'cidict_prefs';
+
+  var isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+  // Deteksi "mobile" (tanpa hover) via matchMedia — lebih tepat daripada
+  // isTouch, karena laptop touchscreen tetap melaporkan hover: hover.
+  var noHover = isTouch;
+  try {
+    if (window.matchMedia) noHover = window.matchMedia('(hover: none)').matches;
+  } catch (e) { /* pakai fallback isTouch */ }
+
+  function validMode(m) {
+    return (m === 'popup' || m === 'docked' || m === 'both') ? m : null;
+  }
 
   function savePrefs() {
     try {
@@ -83,7 +48,8 @@
         showPopups: !!opts.showPopups,
         theme: opts.theme,
         trad: useTrad,
-        displayMode: opts.displayMode,
+        displayMode: opts.displayModeDesktop,
+        displayModeMobile: opts.displayModeMobile,
         dockAlign: opts.dockAlign
       }));
     } catch (e) { /* abaikan (mode privat, dsb) */ }
@@ -97,20 +63,26 @@
     if (typeof p.showPopups === 'boolean') opts.showPopups = p.showPopups;
     if (p.theme === 'dark' || p.theme === 'light') opts.theme = p.theme;
     if (typeof p.trad === 'boolean') useTrad = p.trad;
-    if (p.displayMode === 'popup' || p.displayMode === 'docked' || p.displayMode === 'both')
-      opts.displayMode = p.displayMode;
+    opts.displayModeDesktop = validMode(p.displayMode) || 'popup';
+    opts.displayModeMobile = validMode(p.displayModeMobile); // null = belum diatur
+    // Mode efektif mengikuti perangkat; mobile jatuh kembali ke simpanan
+    // desktop bila belum punya simpanan sendiri.
+    opts.displayMode = noHover
+      ? (opts.displayModeMobile || opts.displayModeDesktop)
+      : opts.displayModeDesktop;
     if (p.dockAlign === 'left' || p.dockAlign === 'right') opts.dockAlign = p.dockAlign;
   }
 
-  loadPrefs();
+  // Nilai displayMode tersimpan untuk perangkat saat ini (null bila tak ada).
+  function savedDisplayMode() {
+    var p = null;
+    try { p = JSON.parse(localStorage.getItem(PREF_KEY) || 'null'); } catch (e) {}
+    if (!p) return null;
+    if (noHover) return validMode(p.displayModeMobile) || validMode(p.displayMode);
+    return validMode(p.displayMode);
+  }
 
-  var isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
-  // Deteksi "mobile" (tanpa hover) via matchMedia — lebih tepat daripada
-  // isTouch, karena laptop touchscreen tetap melaporkan hover: hover.
-  var noHover = isTouch;
-  try {
-    if (window.matchMedia) noHover = window.matchMedia('(hover: none)').matches;
-  } catch (e) { /* pakai fallback isTouch */ }
+  loadPrefs();
   var dictCache = {};          // akumulasi { surface: { r:[{y,d}], t } }
   var trackedRoots = new Set(); // elemen yang pernah di-annotate
 
@@ -126,8 +98,16 @@
     if (!o) return;
     var hadLoadingOpt = Object.prototype.hasOwnProperty.call(o, 'loading');
     for (var k in o) {
+      if (k === 'displayMode') continue; // ditangani khusus di bawah
       if (Object.prototype.hasOwnProperty.call(o, k) && o[k] !== undefined) opts[k] = o[k];
     }
+    // displayMode: simpanan visitor di localStorage menang atas opsi
+    // annotate(); opsi hanya dipakai bila belum ada simpanan (fallback
+    // ke default 'popup'). Mencegah opsi halaman menimpa pilihan mode
+    // yang sudah disimpan visitor.
+    if (o.displayMode !== undefined && savedDisplayMode() === null &&
+        (o.displayMode === 'popup' || o.displayMode === 'docked' || o.displayMode === 'both'))
+      opts.displayMode = o.displayMode;
     if (opts.apiBase === null) opts.apiBase = defaultApiBase();
     if (hadLoadingOpt && !o.loading) releaseAutoHidden();
     if (opts.loading) applyLoadingInitial();
@@ -148,10 +128,14 @@
   }
 
   // Footer "cidict.org": unselectable tapi bisa diklik (buka tab baru).
-  function creditEl() {
+  // Href menunjuk ke halaman kamus untuk hanzi yang sedang dilihat.
+  function kamusUrl(word) {
+    return 'https://cidict.org/kamus/?q=' + encodeURIComponent(word || '');
+  }
+  function creditEl(word) {
     var a = document.createElement('a');
     a.className = 'cidict-credit';
-    a.setAttribute('href', 'https://cidict.org');
+    a.setAttribute('href', kamusUrl(word));
     a.setAttribute('target', '_blank');
     a.setAttribute('rel', 'noopener');
     a.textContent = 'cidict.org';
@@ -329,7 +313,7 @@
       body.appendChild(block);
     }
     frag.appendChild(body);
-    frag.appendChild(creditEl());
+    frag.appendChild(creditEl(word));
     return { frag: frag, body: body };
   }
 
@@ -392,7 +376,7 @@
       btnSwitch.setAttribute('title', 'Beralih ke mode dock');
       btnSwitch.addEventListener('click', function (ev) {
         ev.stopPropagation();
-        cidict.setDisplayMode('docked');
+        cidict.toggleDisplayMode();
       });
       actions.appendChild(btnSwitch);
       var btnClose = el('button', 'cidict-iconbtn cidict-close', '\u00D7');
@@ -409,7 +393,7 @@
     popup.appendChild(body);
     // Footer sebagai anak langsung popup (seperti mode hover): margin tidak
     // collapse dengan isi body sehingga posisi footer identik di kedua mode.
-    popup.appendChild(creditEl());
+    popup.appendChild(creditEl(word));
     popup.style.visibility = 'hidden'; // ukur dulu sebelum tampil
     placePopup(popup, ruby);
     popup.style.visibility = 'visible';
@@ -464,7 +448,7 @@
     // Tombol switch hanya di mobile (2.4.3): di desktop mode 'both'
     // popup & dock memang tampil bersamaan, jadi tombol ini tak perlu.
     var btnMode = mkBtn('cidict-dock-switch', '\u21C4', 'Beralih ke mode popup', function () {
-      cidict.setDisplayMode('popup');
+      cidict.toggleDisplayMode();
     });
     btnMode.style.display = noHover ? '' : 'none';
     top.appendChild(btnMode);
@@ -485,7 +469,8 @@
     dockEl.appendChild(reading);
     var body = el('div', 'cidict-dock-body');
     dockEl.appendChild(body);
-    dockEl.appendChild(creditEl());
+    var credit = creditEl('');
+    dockEl.appendChild(credit);
     document.body.appendChild(dockEl);
     dockEl._word = word;
     dockEl._pinyin = pinyin;
@@ -493,6 +478,7 @@
     dockEl._count = count;
     dockEl._hcount = hcount;
     dockEl._body = body;
+    dockEl._credit = credit;
     dockEl._switch = btnMode;
     return dockEl;
   }
@@ -522,6 +508,7 @@
     dock.dataset.cidictTheme = opts.theme;
     dock._word.textContent = word + (entry.t ? ' [' + entry.t + ']' : '');
     dock._pinyin.textContent = rd.y || '';
+    dock._credit.setAttribute('href', kamusUrl(word));
     dock._readingRow.style.display = n > 1 ? '' : 'none';
     dock._count.textContent = (dockReadingIdx + 1) + '/' + n;
     var list = allRubies();
@@ -571,11 +558,19 @@
     if (!dockActive) return;
     var list = allRubies();
     var i = list.indexOf(dockFor);
-    if (i < 0) { if (list.length) { dockFor = list[0]; dockReadingIdx = 0; renderDock(); refreshHl(); } return; }
+    if (i < 0) { if (list.length) { dockFor = list[0]; dockReadingIdx = 0; renderDock(); refreshHl(); scrollToHanzi(); } return; }
     dockFor = list[(i + dir + list.length) % list.length];
     dockReadingIdx = 0;
     renderDock();
     refreshHl();
+    scrollToHanzi();
+  }
+
+  // Bawa hanzi aktif dock ke dalam view (navigasi « » / keyboard).
+  function scrollToHanzi() {
+    if (!dockFor || !dockFor.scrollIntoView) return;
+    try { dockFor.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' }); }
+    catch (e) { try { dockFor.scrollIntoView(true); } catch (e2) {} }
   }
 
   // ---------- render ----------
@@ -958,6 +953,29 @@
     }
   }
 
+  // true bila elemen hanzi masih terlihat di viewport.
+  function hanziInView(elm) {
+    if (!elm || !elm.getBoundingClientRect) return false;
+    var rc = elm.getBoundingClientRect();
+    return rc.bottom > 0 && rc.top < window.innerHeight &&
+           rc.right > 0 && rc.left < window.innerWidth;
+  }
+
+  // Pinned-popup menempel pada hanzi saat halaman di-scroll/di-resize:
+  // posisi dihitung ulang (otomatis pindah atas/bawah via placePopup);
+  // bila hanzi keluar dari view, popup ditutup.
+  var scrollRaf = 0;
+  function onScrollReposition(e) {
+    if (e && e.target && popupEl && popupEl.contains(e.target)) return; // scroll di dalam popup sendiri
+    if (scrollRaf) return;
+    scrollRaf = requestAnimationFrame(function () {
+      scrollRaf = 0;
+      if (popupState !== 'pinned' || !popupFor || !popupEl) return;
+      if (!hanziInView(popupFor)) { hidePopup(); return; }
+      placePopup(popupEl, popupFor);
+    });
+  }
+
   function attachListeners() {
     if (listenersAttached) return;
     listenersAttached = true;
@@ -965,6 +983,8 @@
     document.addEventListener('mouseout', onMouseOut);
     document.addEventListener('click', onClick, true);
     document.addEventListener('keydown', onKeyDown);
+    window.addEventListener('scroll', onScrollReposition, { passive: true, capture: true });
+    window.addEventListener('resize', onScrollReposition);
   }
 
   function detachListeners() {
@@ -974,6 +994,8 @@
     document.removeEventListener('mouseout', onMouseOut);
     document.removeEventListener('click', onClick, true);
     document.removeEventListener('keydown', onKeyDown);
+    window.removeEventListener('scroll', onScrollReposition, { capture: true });
+    window.removeEventListener('resize', onScrollReposition);
   }
 
   // ---------- API publik ----------
@@ -1059,21 +1081,36 @@
     },
 
     // Mode tampilan definisi: 'popup' | 'docked' | 'both'.
-    // Hanya setter (tidak ada toggle). Nilai tidak valid diabaikan.
+    // Hanya setter (toggle ada di toggleDisplayMode). Nilai tidak valid
+    // diabaikan. Simpanan ditulis ke kunci perangkat yang sedang dipakai
+    // (displayModeMobile di mobile, displayMode di desktop).
     // Berpindah mode juga menyimpan preferensi visitor ke localStorage.
     setDisplayMode: function (mode) {
-      if (mode !== 'popup' && mode !== 'docked' && mode !== 'both') return this;
+      if (!validMode(mode)) return this;
       opts.displayMode = mode;
+      if (noHover) opts.displayModeMobile = mode;
+      else opts.displayModeDesktop = mode;
       if (mode === 'popup') {
+        // Simetri dengan popup→dock: bila hanzi dock masih terlihat
+        // (mobile), langsung tampilkan pinned-popup-nya.
+        var rb = dockFor;
         hideDock();
+        if (noHover && rb && hanziInView(rb)) showPinnedPopup(rb);
       } else if (mode === 'docked') {
-        var rb = popupFor;
+        var rb2 = popupFor;
         hidePopup();
-        if (rb) showDock(rb);
+        if (rb2) showDock(rb2);
       }
       // 'both': dock tampil saat hanzi diklik berikutnya.
       savePrefs();
       return this;
+    },
+
+    // Toggle popup <> docked untuk tombol ⇄ di mobile. 'both' diabaikan
+    // (bukan bagian siklus): dari 'both' toggle mendarat di 'docked'.
+    // Menyimpan ke preferensi perangkat yang sedang dipakai.
+    toggleDisplayMode: function () {
+      return this.setDisplayMode(opts.displayMode === 'docked' ? 'popup' : 'docked');
     },
 
     // Posisi dock di desktop: 'left' | 'right' (mobile selalu bottom).

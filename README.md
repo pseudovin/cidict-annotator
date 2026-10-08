@@ -178,7 +178,7 @@ global via `configure`. Opsi per pemanggilan menimpa opsi global.
 | `apiBase` | `null` | Base URL API. `null` = origin script ini; `''` = origin halaman |
 | `theme` | `'light'` | Tema popup: `'light'` \| `'dark'` |
 | `showPopups` | `true` | Tampilkan popup definisi (hover/klik/tap). `false` mematikan seluruh UI definisi |
-| `displayMode` | `'popup'` | Mode tampilan definisi: `'popup'` \| `'docked'` \| `'both'` |
+| `displayMode` | `'popup'` | Mode tampilan definisi: `'popup'` \| `'docked'` \| `'both'`. Di mobile, simpanan `displayModeMobile` (bila ada) dipakai lebih dulu |
 | `dockAlign` | `'right'` | Posisi dock di desktop: `'left'` \| `'right'` (mobile selalu fixed bottom) |
 | `showInline` | `true` | Tampilkan pinyin inline di atas kata |
 | `chunkSize` | `2000` | Pecah teks panjang per N karakter (`0` = nonaktif) |
@@ -209,7 +209,8 @@ cidict.annotate('.artikel', { loading: { target: '#loader', show: 'flex' } });
 | `cidict.lookup(word)` | Mengembalikan Promise `{ word, def }` dari `/api/lookup` |
 | `cidict.health()` | Mengembalikan Promise `{ ok, version, entries, ... }` dari `/api/health` |
 | `cidict.showPopups(bool)` | Nyalakan/matikan popup. `false` mematikan seluruh UI definisi (popup transien, terpin, dock). Mengembalikan `this` |
-| `cidict.setDisplayMode(mode)` | `'popup'` \| `'docked'` \| `'both'`. Hanya setter (tanpa toggle); nilai tidak valid diabaikan. Pindah mode menyimpan preferensi visitor. Mengembalikan `this` |
+| `cidict.setDisplayMode(mode)` | `'popup'` \| `'docked'` \| `'both'`. Nilai tidak valid diabaikan. Menyimpan ke preferensi perangkat yang sedang dipakai (`displayModeMobile` di mobile, `displayMode` di desktop). Pindah dock→popup di mobile langsung menampilkan pinned-popup bila hanzinya masih terlihat. Mengembalikan `this` |
+| `cidict.toggleDisplayMode()` | Toggle `popup` <> `docked` untuk tombol ⇄ di mobile; `'both'` diabaikan (dari `'both'` mendarat di `'docked'`). Dipakai kedua tombol switch mode. Mengembalikan `this` |
 | `cidict.setDockAlign(align)` | `'left'` \| `'right'` posisi dock di desktop. Mengembalikan `this` |
 | `cidict.showInline(bool)` | Nyalakan/matikan pinyin inline. Mengembalikan `this` |
 | `cidict.togglePinyin(bool?)` | Toggle pinyin inline. Tanpa argumen = balik status; dengan boolean = set eksplisit. Mengembalikan `this` |
@@ -226,13 +227,20 @@ cidict.annotate('.artikel', { loading: { target: '#loader', show: 'flex' } });
 ### Preferensi tersimpan (localStorage)
 
 `showInline`, `showPopups`, `theme`, status Simplified/Traditional,
-`displayMode`, dan `dockAlign` disimpan otomatis ke `localStorage` (satu
-objek JSON di kunci `cidict_prefs`) setiap kali diubah lewat
-`showInline()`, `showPopups()`, `theme()`, `toggleHanzi()`,
-`setDisplayMode()`, atau `setDockAlign()`, lalu dipulihkan saat script
-di-load. Opsi eksplisit yang diberikan ke `annotate()`/`annotateText()`
-tetap menang atas nilai tersimpan untuk pemanggilan tersebut, tetapi
-tidak menimpa simpanan.
+`displayMode`, `displayModeMobile`, dan `dockAlign` disimpan otomatis ke
+`localStorage` (satu objek JSON di kunci `cidict_prefs`) setiap kali
+diubah lewat `showInline()`, `showPopups()`, `theme()`, `toggleHanzi()`,
+`setDisplayMode()`, `toggleDisplayMode()`, atau `setDockAlign()`, lalu
+dipulihkan saat script di-load. Mode tampil punya dua simpanan
+terpisah: `displayMode` untuk desktop dan `displayModeMobile` untuk
+mobile — mengganti mode di HP tidak mengubah perilaku di desktop
+(atau sebaliknya). Di mobile, `displayModeMobile` dipakai lebih dulu;
+bila belum ada, jatuh kembali ke `displayMode`. Khusus `displayMode`:
+nilai tersimpan (untuk perangkat saat ini) selalu menang atas opsi
+`displayMode` yang diberikan ke `annotate()`/`annotateText()`; opsi
+tersebut hanya dipakai bila belum ada simpanan (fallback ke default
+`'popup'`). Opsi eksplisit lain tetap menimpa nilai sesaat tanpa
+mengubah simpanan.
 
 Interaksi definisi (client 2.0.0, final stable): tidak ada opsi `trigger` — hanzi
 selalu bisa di-hover (desktop) dan di-klik/tap. Pinyin inline `<rt>`
@@ -249,7 +257,8 @@ yang sangat panjang di-wrap via CSS agar tidak keluar container.
   hanzi di baris sendiri terpusat (muat hanzi panjang); pinyin di baris
   sendiri (wrap bila panjang); navigator bacaan `< 1/4 >` di bawah
   pinyin, hanya tampil bila bacaan > 1; indikator hanzi aktif (juga via
-  keyboard saat fokus di ruby/dock); tanpa tombol copy. Tombol ⇄ untuk
+  keyboard saat fokus di ruby/dock); navigasi « » otomatis scroll
+  halaman ke hanzi yang aktif; tanpa tombol copy. Tombol ⇄ untuk
   beralih mode hanya di mobile (ikon saja). Mobile: dock full-width
   bottom sheet, tinggi fix 35vh, isi scroll. Desktop: align kiri/kanan
   via `dockAlign`. Semua tombol tinggi seragam 30px, font Arial.
@@ -261,9 +270,13 @@ yang sangat panjang di-wrap via CSS agar tidak keluar container.
   beralih/menutup; selama dock aktif, popup tidak tampil. Pindah mode
   via icon ⇄ dua arah (popup ⇄ dock); pilihan tersimpan sebagai
   preferensi visitor. Footer "cidict.org" di popup/dock adalah link
-  (buka tab baru, unselectable); di dock mobile selalu menempel di
-  dasar panel. Di desktop, pinned-popup tanpa tombol (tutup via klik
-  di luar / Esc).
+  ke halaman kamus untuk hanzi yang sedang dilihat
+  (`https://cidict.org/kamus/?q=<hanzi>`; buka tab baru, unselectable);
+  di dock mobile selalu menempel di dasar panel, di popup terpin
+  selalu terlihat di bawah (tidak ikut scroll). Pinned-popup menempel
+  pada hanzi saat halaman di-scroll (posisi otomatis pindah atas/bawah)
+  dan tertutup sendiri bila hanzi keluar dari view. Di desktop,
+  pinned-popup tanpa tombol (tutup via klik di luar / Esc).
 - `showPopups(false)` mematikan seluruh UI definisi (transien, terpin,
   dock). `Enter`/`Space` pada kata yang difokuskan = klik,
   `Escape` menutup popup lalu dock.
