@@ -6,8 +6,6 @@ Anotasi teks Mandarin di web: **pinyin inline** di atas kata + **popup definisi 
 - Client: satu file JavaScript (`dist/cidict-annotator.min.js`, CSS di-inject otomatis)
 - Demo: https://api.cidict.org/ · client: `https://api.cidict.org/static/cidict-annotator.min.js`
 
-Versi: server `1.0.0` · client `2.0.2` · data kamus `v27` (125.626 entri).
-
 ## Mulai cepat
 
 ```bash
@@ -39,8 +37,8 @@ Hanya variabel berawalan `CIDICT_*` yang dibaca. File `.env` di direktori projec
 | Variabel | Default | Keterangan |
 |---|---|---|
 | `PORT` | `3100` | Port listen |
-| `CIDICT_DB` | `./data/fixture.db` | Path file SQLite kamus |
-| `CIDICT_DB_VERSION_FILE` | _(kosong)_ | Path `version.json`; bila diset, update DB terdeteksi dari field `version`, kamus di-reload otomatis tanpa restart, integritas diverifikasi via `databaseMd5` |
+| `CIDICT_DB` | `./data/cc-cidict.db` | Path file SQLite kamus |
+| `CIDICT_DB_VERSION_FILE` | `./data/version.json` | (optional) Path `version.json`; bila diset, update DB terdeteksi dari field `version`, kamus di-reload otomatis tanpa restart, integritas diverifikasi via `databaseMd5` |
 | `CIDICT_DB_HASH_CHECK` | `true` | Verifikasi `databaseMd5` saat (re)load (`false` = skip) |
 | `CIDICT_MIN_FREQ` | `1000` | Batas bawah frekuensi leksikon jieba |
 | `CIDICT_HMM` | `false` | Model HMM jieba |
@@ -134,25 +132,17 @@ Preferensi pengunjung (`displayMode`, tema, dll) tersimpan di `localStorage`
 
 ## Data kamus
 
-File data tidak ikut di repo (77 MB), diunduh terpisah dari CDN:
+File data tidak ikut di repo, diunduh terpisah dari CDN:
 
 - https://cdn.cidict.org/annotator/cc-cidict.db — database SQLite kamus
 - https://cdn.cidict.org/annotator/version.json — manifest (`version`, `databaseMd5`, `databaseSha256`, jumlah entri)
 
-Set `CIDICT_DB` ke path file `.db`, dan `CIDICT_DB_VERSION_FILE` ke
-`version.json` untuk mengaktifkan **hot reload**: setiap ada `version`
-baru, kamus + leksikon + prioritas pinyin dibangun ulang otomatis tanpa
-restart (DB korup/ditolak → versi lama tetap diserve). Prosedur update
-yang aman: upload `.db` baru dengan nama sementara lalu rename atomik,
-kemudian naikkan `version` di manifest.
+Set `CIDICT_DB` ke path file `.db`, dan `CIDICT_DB_VERSION_FILE` ke `version.json` untuk mengaktifkan **hot reload**: setiap ada `version` baru, kamus + leksikon + prioritas pinyin dibangun ulang otomatis tanpa restart (DB korup/ditolak → versi lama tetap diserve). Prosedur update yang aman: upload `.db` baru dengan nama sementara lalu rename atomik, kemudian naikkan `version` di manifest.
 
 Dua file teks ikut mengatur perilaku kamus (reload via `POST /api/seg-reload`):
 
-- `segment_overrides.txt` — satu kata per baris = force-split (kata
-  di-demote, bukan dihapus, sehingga segmenter hampir selalu memecahnya).
-- `pinyin_priority.txt` — `<kata> = <pinyin>` memaksa urutan bacaan
-  (mis. `喝 = hē`); selain itu skor otomatis: partikel +10, marga −10,
-  kapital −4, arkais −3, varian −1, huruf kecil +1, sense + frekuensi.
+- `segment_overrides.txt` — satu kata per baris = force-split (kata di-demote, bukan dihapus, sehingga segmenter hampir selalu memecahnya).
+- `pinyin_priority.txt` — `<kata> = <pinyin>` memaksa urutan bacaan (mis. `喝 = hē`); selain itu skor otomatis: partikel +10, marga −10, kapital −4, arkais −3, varian −1, huruf kecil +1, sense + frekuensi.
 
 ## Deploy VPS
 
@@ -188,9 +178,7 @@ WantedBy=multi-user.target
 systemctl enable --now cidict
 ```
 
-Di depan pasang reverse proxy (nginx/Caddy) untuk TLS dan arahkan ke
-`http://127.0.0.1:3100`. Simpan file data **di luar** direktori aplikasi
-(mis. `/opt/cidict-data/`) agar tidak ikut ter-reset saat redeploy.
+Di depan pasang reverse proxy (nginx/Caddy) untuk TLS dan arahkan ke `http://127.0.0.1:3100`. Simpan file data **di luar** direktori aplikasi (mis. `/opt/cidict-data/`) agar tidak ikut ter-reset saat redeploy.
 
 ## Struktur repo
 
