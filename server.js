@@ -9,7 +9,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { Jieba } from '@node-rs/jieba';
 import path from 'node:path';
 import fs from 'node:fs';
-import { createHash } from 'node:crypto';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { normalizePinyin, sortReadings, normPinyin } from './pinyin.js';
 
@@ -608,7 +608,32 @@ app.get('/api/lookup', (req, res) => {
 });
 
 // Muat ulang file konfigurasi + bangun ulang leksikon tanpa restart.
+// Proteksi: koneksi TCP langsung dari localhost bebas token; dari luar
+// wajib token (header `Authorization: Bearer <token>` atau query `?token=`).
+// Request via reverse proxy selalu membawa X-Forwarded-For sehingga tidak
+// lolos sebagai localhost. Tanpa CIDICT_RELOAD_TOKEN, non-localhost = 403.
+const RELOAD_TOKEN = env('CIDICT_RELOAD_TOKEN', '');
+
+function isDirectLocalhost(req) {
+  const addr = req.socket && req.socket.remoteAddress;
+  const loopback = addr === '127.0.0.1' || addr === '::1' || addr === '::ffff:127.0.0.1';
+  return !!loopback && !req.headers['x-forwarded-for'];
+}
+
+function reloadAuthorized(req) {
+  if (isDirectLocalhost(req)) return true;
+  if (!RELOAD_TOKEN) return false;
+  const h = req.get('authorization') || '';
+  const q = req.query && typeof req.query.token === 'string' ? req.query.token : '';
+  const provided = h.startsWith('Bearer ') ? h.slice(7) : q;
+  if (!provided) return false;
+  const a = Buffer.from(provided, 'utf8');
+  const b = Buffer.from(RELOAD_TOKEN, 'utf8');
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
 app.post('/api/seg-reload', (req, res) => {
+  if (!reloadAuthorized(req)) return res.status(403).json({ ok: false, error: 'forbidden' });
   try {
     const built = buildJieba();
     jieba = built.jieba;

@@ -344,12 +344,6 @@ Daftar kata yang perlu diperlakukan sebagai **force-split** oleh segmenter.
 
 Satu kata per baris. Komentar dapat diawali `#` atau `//`.
 
-Perubahan dapat diterapkan tanpa restart:
-
-```http
-POST /api/seg-reload
-```
-
 ### `pinyin_priority.txt`
 
 Digunakan untuk memprioritaskan bacaan pinyin tertentu.
@@ -367,6 +361,21 @@ Contoh:
 ```
 
 Override ini berguna ketika sebuah kata memiliki beberapa kemungkinan bacaan dan urutan default tidak sesuai konteks yang diinginkan.
+Endpoint ini mengubah state server, jadi tidak terbuka bebas:
+
+- Koneksi **TCP langsung dari localhost** (mis. `curl` via SSH ke `http://127.0.0.1:3100/api/seg-reload`) → bebas token.
+- Dari **luar** → wajib token: header `Authorization: Bearer <token>` atau query `?token=<token>`, dengan `<token>` = isi `CIDICT_RELOAD_TOKEN`. Tanpa token yang cocok → `403`.
+- Request via reverse proxy selalu membawa `X-Forwarded-For` sehingga tidak dihitung sebagai localhost — token tetap wajib walau nginx-nya sekota dengan Node.
+- Bila `CIDICT_RELOAD_TOKEN` kosong, non-localhost selalu `403`.
+
+```bash
+# via SSH (tanpa token)
+curl -X POST http://127.0.0.1:3100/api/seg-reload
+
+# dari luar (dengan token)
+curl -X POST -H "Authorization: Bearer $TOKEN" https://api.cidict.org/api/seg-reload
+# atau: curl -X POST "https://api.cidict.org/api/seg-reload?token=$TOKEN"
+```
 
 ## Pengembangan
 
