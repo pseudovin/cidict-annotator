@@ -1,95 +1,371 @@
 # CC-CIDICT Annotator
 
-Anotasi teks Mandarin di web: **pinyin inline** di atas kata + **popup definisi Bahasa Indonesia** saat hover/klik/tap.
+Annotasi teks Mandarin langsung di halaman web dengan **pinyin inline** di atas hanzi dan **definisi Bahasa Indonesia** melalui popup atau panel.
 
-- Backend Node.js: Express + jieba + SQLite (`node:sqlite` bawaan — tanpa native module)
-- Client: satu file JavaScript (`dist/cidict-annotator.min.js`, CSS di-inject otomatis)
-- Demo: https://api.cidict.org/ · client: `https://api.cidict.org/static/cidict-annotator.min.js`
+CC-CIDICT Annotator menggunakan:
 
-Versi: server `1.0.0` · client `2.0.2` · data kamus `v27` (125.626 entri).
+- **Node.js** untuk backend
+- **Express** untuk HTTP API dan static file server
+- **`@node-rs/jieba`** untuk segmentasi teks Mandarin
+- **SQLite** untuk database kamus
+- **JavaScript single-file** untuk client/browser
+- **CC-CIDICT** sebagai sumber data kamus dari [cidict.org](https://cidict.org/)
 
-## Mulai cepat
+> **Persyaratan:** Node.js **22.5+**
 
-```bash
-git clone https://github.com/pseudovin/cidict-annotator.git
-cd cidict-annotator
-npm install
-mkdir -p data
-curl -o data/cc-cidict.db https://cdn.cidict.org/annotator/cc-cidict.db
-curl -o data/version.json https://cdn.cidict.org/annotator/version.json
-cp .env.example .env   # opsional; env sistem selalu menang
-npm run build           # hasilkan dist/cidict-annotator.min.js
-npm start
+## Penggunaan
+
+### Gunakan API Publik yang Sudah Tersedia
+
+Anda tidak perlu deploy backend sendiri. Untuk menggunakan annotator di website, cukup muat client dari server CC-CIDICT:
+
+```html
+<script src="//api.cidict.org/static/cidict-annotator.min.js" charset="UTF-8"></script>
+<script>
+  cidict.annotate('.artikel', { theme: 'light' });
+</script>
 ```
 
-Buka http://localhost:3100 — halaman demo langsung menganotasi contoh teks.
+Contoh:
 
-> Syarat: Node.js 22.5+.
+```html
+<p class="artikel">
+  这个故事特别有意思。
+</p>
 
-## Cara kerja
+<script src="//api.cidict.org/static/cidict-annotator.min.js" charset="UTF-8"></script>
+<script>
+  cidict.annotate('.artikel');
+</script>
+```
 
-1. `POST /api/annotate` menerima teks → server memecah kata dengan jieba (leksikon dari DB + `segment_overrides.txt`), mengambil definisi + pinyin per kata.
-2. Client me-render `<ruby>` (pinyin inline) dan popup/dock definisi.
-3. Pinyin dinormalisasi ke ortografi baku (`kě yǐ` → `kěyǐ`, `píng ān` → `píng'ān`) — DB tidak diubah.
+`'.artikel'` adalah selector CSS untuk elemen yang ingin dianotasi.
 
-## Konfigurasi
+Secara default, client menggunakan **origin tempat file JavaScript dimuat** sebagai `apiBase`. Dengan contoh di atas, request API otomatis diarahkan ke `api.cidict.org`.
 
-Hanya variabel berawalan `CIDICT_*` yang dibaca. File `.env` di direktori project dimuat otomatis (tanpa pustaka tambahan); variabel dari sistem selalu menang. Path relatif dihitung dari direktori project.
+### Konfigurasi
+
+```js
+cidict.configure({
+  apiBase: 'https://api.example.org'
+});
+
+cidict.annotate('.artikel', {
+  theme: 'light',
+  displayMode: 'popup'
+});
+```
+
+Opsi yang tersedia:
+
+| Opsi | Default | Keterangan |
+|---|---|---|
+| `theme` | `'light'` | `'light'` atau `'dark'` |
+| `showInline` | `true` | Tampilkan pinyin inline |
+| `showPopups` | `true` | Tampilkan popup/panel definisi |
+| `displayMode` | `'popup'` | `'popup'`, `'docked'`, atau `'both'` |
+| `dockAlign` | `'right'` | Posisi dock desktop: `'left'` atau `'right'` |
+| `chunkSize` | `2000` | Ukuran chunk untuk teks panjang; `0` untuk menonaktifkan |
+| `maxConcurrency` | `3` | Jumlah request anotasi paralel |
+| `loading` | `null` | Selector atau `{ target, show }` untuk indikator loading |
+
+### Mode Tampilan
+
+**`popup`** — mode default. Di desktop, hover menampilkan pinyin utama dan hingga 4 definisi; klik membuka informasi lengkap. Pada perangkat tanpa hover, interaksi dilakukan dengan tap.
+
+**`docked`** — definisi ditampilkan dalam panel. Di desktop panel berada di kiri/kanan; di mobile menjadi bottom sheet.
+
+**`both`** — popup dan dock tersedia bersama dengan perilaku yang menyesuaikan perangkat.
+
+Preferensi pengunjung seperti tema, pinyin, hanzi tradisional, dan mode tampilan disimpan di `localStorage` menggunakan key `cidict_prefs`.
+
+### API Client
+
+```js
+cidict.annotate('.artikel');
+cidict.annotateText('这个故事特别有意思。');
+
+cidict.lookup('喝');
+cidict.health();
+
+cidict.setDisplayMode('docked');
+cidict.toggleDisplayMode();
+
+cidict.togglePinyin();
+cidict.toggleHanzi();
+cidict.toggleTheme();
+
+cidict.showInline(false);
+cidict.showPopups(false);
+
+cidict.unannotate('.artikel');
+cidict.destroy();
+```
+
+`annotate()` dan `annotateText()` mengembalikan `Promise`.
+
+`annotateText()` mengembalikan HTML hasil anotasi tanpa langsung memasukkannya ke halaman:
+
+```js
+const html = await cidict.annotateText('你好世界');
+document.querySelector('#hasil').innerHTML = html;
+```
+
+## Self-Hosting di VPS
+
+Backend dapat dijalankan sendiri pada VPS atau server Linux yang dapat menjalankan Node.js 22.5+.
+
+> Deployment serverless seperti Vercel belum menjadi target atau konfigurasi resmi project ini. README ini hanya mendokumentasikan deployment pada server/VPS dengan proses Node.js yang berjalan terus-menerus.
+
+### 1. Clone dan Install
+
+```bash
+git clone https://github.com/pseudovin/cidict-annotator.git /opt/cidict
+cd /opt/cidict
+
+npm install
+npm run build
+```
+
+### 2. Download Database CC-CIDICT
+
+Database **tidak disertakan di repository**.
+
+Download **database CC-CIDICT dan `version.json` terbaru** dari halaman download resmi:
+
+**https://cidict.org/download/**
+
+Setelah diunduh, letakkan kedua file tersebut di server, misalnya:
+
+```text
+/opt/cidict-data/
+├── cc-cidict.db
+└── version.json
+```
+
+Nama file dapat disesuaikan dengan file yang tersedia pada halaman download.
+
+### 3. Konfigurasi
+
+Buat file `.env` di direktori project:
+
+```env
+PORT=3100
+
+CIDICT_DB=/opt/cidict-data/cc-cidict.db
+CIDICT_DB_VERSION_FILE=/opt/cidict-data/version.json
+
+CIDICT_DB_HASH_CHECK=true
+
+CIDICT_MIN_FREQ=1000
+CIDICT_HMM=false
+
+CIDICT_CACHE_SIZE=1000
+CIDICT_CACHE_FILE=/opt/cidict-data/annotate-cache.db
+CIDICT_CACHE_DISK_SIZE=10000
+```
+
+Variabel utama:
 
 | Variabel | Default | Keterangan |
 |---|---|---|
-| `PORT` | `3100` | Port listen |
-| `CIDICT_DB` | `./data/fixture.db` | Path file SQLite kamus |
-| `CIDICT_DB_VERSION_FILE` | _(kosong)_ | Path `version.json`; bila diset, update DB terdeteksi dari field `version`, kamus di-reload otomatis tanpa restart, integritas diverifikasi via `databaseMd5` |
-| `CIDICT_DB_HASH_CHECK` | `true` | Verifikasi `databaseMd5` saat (re)load (`false` = skip) |
-| `CIDICT_MIN_FREQ` | `1000` | Batas bawah frekuensi leksikon jieba |
-| `CIDICT_HMM` | `false` | Model HMM jieba |
-| `CIDICT_CACHE_SIZE` | `1000` | Entri cache memori, LRU (`0` = mati) |
-| `CIDICT_CACHE_FILE` | `./data/annotate-cache.db` | Cache disk persisten (kosongkan = mati) |
-| `CIDICT_CACHE_DISK_SIZE` | `10000` | Entri cache disk |
-| `CIDICT_RELOAD_TOKEN` | _(kosong)_ | Token proteksi `POST /api/seg-reload` (lihat bawah) |
+| `PORT` | `3100` | Port HTTP server |
+| `CIDICT_DB` | path database lokal | Path database SQLite |
+| `CIDICT_DB_VERSION_FILE` | kosong | Path `version.json`; jika diaktifkan, versi database dapat dipantau untuk hot reload |
+| `CIDICT_DB_HASH_CHECK` | `true` | Verifikasi `databaseMd5` dari `version.json` |
+| `CIDICT_MIN_FREQ` | `1000` | Minimum frekuensi kata pada leksikon jieba |
+| `CIDICT_HMM` | `false` | Aktif/nonaktif model HMM jieba |
+| `CIDICT_CACHE_SIZE` | `1000` | Cache memori LRU; `0` untuk menonaktifkan |
+| `CIDICT_CACHE_FILE` | path cache lokal | Cache SQLite persisten; kosongkan untuk menonaktifkan |
+| `CIDICT_CACHE_DISK_SIZE` | `10000` | Jumlah maksimum entri cache disk |
 
-## API
+### 4. Jalankan
+
+```bash
+npm start
+```
+
+Secara default server menggunakan port `3100`.
+
+Untuk production, gunakan process manager seperti **systemd** dan reverse proxy seperti **nginx** atau **Caddy** untuk HTTPS.
+
+### Contoh systemd
+
+Buat:
+
+```text
+/etc/systemd/system/cidict.service
+```
+
+```ini
+[Unit]
+Description=CC-CIDICT Annotator
+After=network.target
+
+[Service]
+WorkingDirectory=/opt/cidict
+ExecStart=/usr/bin/node server.js
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Aktifkan:
+
+```bash
+systemctl daemon-reload
+systemctl enable --now cidict
+```
+
+Periksa service:
+
+```bash
+systemctl status cidict
+curl http://127.0.0.1:3100/api/health
+```
+
+Kemudian arahkan reverse proxy ke:
+
+```text
+http://127.0.0.1:3100
+```
+
+### Simpan Database di Luar Direktori Aplikasi
+
+Disarankan menyimpan database dan cache di luar repository, misalnya:
+
+```text
+/opt/cidict-data/
+```
+
+Dengan begitu, file data tidak ikut tertimpa ketika aplikasi di-update atau di-deploy ulang.
+
+## Update Database
+
+Self-hosting **tidak mengunduh database baru secara otomatis dari repository GitHub**.
+
+Untuk memperoleh data terbaru, download kembali **database CC-CIDICT dan `version.json` terbaru** dari:
+
+**https://cidict.org/download/**
+
+Backend mendukung hot reload ketika `CIDICT_DB_VERSION_FILE` digunakan. Saat versi pada `version.json` berubah, server dapat memuat ulang database dan membangun ulang artefak turunannya tanpa restart.
+
+Untuk keamanan, database baru diverifikasi menggunakan `databaseMd5`. Jika database tidak cocok atau gagal dimuat, database yang sedang aktif tetap digunakan.
+
+Urutan update yang disarankan:
+
+```text
+download file terbaru
+       ↓
+upload database ke server
+       ↓
+pastikan upload selesai
+       ↓
+update version.json
+       ↓
+backend mendeteksi versi baru
+       ↓
+database di-reload
+```
+
+Jangan memperbarui `version.json` sebelum database baru tersedia sepenuhnya.
+
+## API Backend
+
+Backend menyediakan API untuk annotasi dan lookup:
 
 | Endpoint | Keterangan |
 |---|---|
-| `GET /api/health` | `{ ok, version, db_version, entries, ... }` |
-| `POST /api/annotate` | `{ text }` → `{ tokens, defs, v }` |
-| `GET /api/lookup?text=..` | `{ word, def }` |
-| `POST /api/seg-reload` | Reload `segment_overrides.txt` + `pinyin_priority.txt`, rebuild leksikon, purge cache — tanpa restart. Terproteksi token (lihat bawah) |
-| `GET /static/cidict-annotator.min.js` | Client single-file |
+| `GET /api/health` | Status service dan metadata database |
+| `POST /api/annotate` | Segmentasi + pinyin + definisi |
+| `GET /api/lookup?text=喝` | Lookup satu kata |
+| `POST /api/seg-reload` | Reload aturan segmentasi dan prioritas pinyin |
+| `GET /static/cidict-annotator.min.js` | Client JavaScript |
 | `GET /` | Halaman demo |
 
-```jsonc
-// POST /api/annotate  { "text": "这个特别好" }
+### Contoh `POST /api/annotate`
+
+Request:
+
+```json
 {
-  "tokens": ["这个", "特别", "好"],
-  "defs": {
-    "这个": { "r": [{ "y": "zhège", "d": ["ini"] }], "t": "這個" },
-    "好":   { "r": [{ "y": "hǎo", "d": ["bagus; baik"] },
-                    { "y": "hào", "d": ["suka"] }], "t": null }
-  },
-  "v": "1791109522067.4575:0"   // versi data — kunci cache client
+  "text": "这个特别好"
 }
 ```
 
-- `r`: daftar bacaan terurut skor prioritas (`y` = pinyin bernada, `d` = definisi).
-- `t`: bentuk tradisional (`null` bila sama dengan simplified).
-- Header `X-Cache: HIT/MISS`, `X-Cache-Tier: memory/disk/miss`.
-- Teks panjang dipecah per `chunkSize` (default 2000) dan di-fetch paralel (`maxConcurrency`, default 3).
+Response:
 
-### Proteksi `POST /api/seg-reload`
+```json
+{
+  "tokens": ["这个", "特别", "好"],
+  "defs": {
+    "这个": {
+      "r": [
+        { "y": "zhège", "d": ["ini"] }
+      ],
+      "t": "這個"
+    },
+    "好": {
+      "r": [
+        { "y": "hǎo", "d": ["bagus; baik"] },
+        { "y": "hào", "d": ["suka"] }
+      ],
+      "t": null
+    }
+  },
+  "v": "1791109522067.4575:0"
+}
+```
 
+Keterangan:
+
+- `tokens` — hasil segmentasi jieba.
+- `defs` — data kamus yang ditemukan.
+- `r` — daftar bacaan; `y` = pinyin bertanda nada, `d` = definisi.
+- `t` — bentuk tradisional; `null` bila sama dengan simplified.
+- `v` — versi data yang digunakan sebagai bagian dari cache client.
+
+Pinyin dinormalisasi ke bentuk ortografi yang lebih natural, misalnya:
+
+```text
+kě yǐ             → kěyǐ
+píng ān           → píng'ān
+Běi jīng Dà xué   → Běijīng Dàxué
+```
+
+Teks yang dikirim ke endpoint anotasi dibatasi hingga **20.000 karakter**. Client dapat memecah teks panjang menjadi beberapa chunk dan menjalankan request secara paralel.
+
+## Kustomisasi Segmentasi dan Pinyin
+
+### `segment_overrides.txt`
+
+Daftar kata yang perlu diperlakukan sebagai **force-split** oleh segmenter.
+
+Satu kata per baris. Komentar dapat diawali `#` atau `//`.
+
+### `pinyin_priority.txt`
+
+Digunakan untuk memprioritaskan bacaan pinyin tertentu.
+
+Format:
+
+```text
+<kata> = <pinyin>
+```
+
+Contoh:
+
+```text
+喝 = hē
+```
+
+Override ini berguna ketika sebuah kata memiliki beberapa kemungkinan bacaan dan urutan default tidak sesuai konteks yang diinginkan.
 Endpoint ini mengubah state server, jadi tidak terbuka bebas:
 
-- Koneksi **TCP langsung dari localhost** (mis. `curl` via SSH ke
-  `http://127.0.0.1:3100/api/seg-reload`) → bebas token.
-- Dari **luar** → wajib token: header `Authorization: Bearer <token>`
-  atau query `?token=<token>`, dengan `<token>` = isi
-  `CIDICT_RELOAD_TOKEN`. Tanpa token yang cocok → `403`.
-- Request via reverse proxy selalu membawa `X-Forwarded-For` sehingga
-  tidak dihitung sebagai localhost — token tetap wajib walau nginx-nya
-  sekota dengan Node.
+- Koneksi **TCP langsung dari localhost** (mis. `curl` via SSH ke `http://127.0.0.1:3100/api/seg-reload`) → bebas token.
+- Dari **luar** → wajib token: header `Authorization: Bearer <token>` atau query `?token=<token>`, dengan `<token>` = isi `CIDICT_RELOAD_TOKEN`. Tanpa token yang cocok → `403`.
+- Request via reverse proxy selalu membawa `X-Forwarded-For` sehingga tidak dihitung sebagai localhost — token tetap wajib walau nginx-nya sekota dengan Node.
 - Bila `CIDICT_RELOAD_TOKEN` kosong, non-localhost selalu `403`.
 
 ```bash
@@ -101,137 +377,52 @@ curl -X POST -H "Authorization: Bearer $TOKEN" https://api.cidict.org/api/seg-re
 # atau: curl -X POST "https://api.cidict.org/api/seg-reload?token=$TOKEN"
 ```
 
-Tetap `POST` (bukan `GET`): endpoint berefek samping, dan token di URL
-rentan nyangkut di log — header lebih bersih.
+## Pengembangan
 
-## Client
+Source client:
 
-```html
-<script src="https://api.cidict.org/static/cidict-annotator.min.js" charset="UTF-8"></script>
-<script>
-  cidict.annotate('.artikel', { theme: 'light' });
-</script>
+```text
+src/cidict-annotator.js
 ```
 
-`apiBase` default = origin tempat script dimuat. Untuk API di domain lain:
-
-```js
-cidict.configure({ apiBase: 'https://api.example.org' });
-```
-
-### Opsi
-
-| Opsi | Default | Keterangan |
-|---|---|---|
-| `theme` | `'light'` | `'light'` \| `'dark'` |
-| `showInline` | `true` | Pinyin inline di atas kata |
-| `showPopups` | `true` | UI definisi (`false` = mati total) |
-| `displayMode` | `'popup'` | `'popup'` \| `'docked'` \| `'both'` |
-| `dockAlign` | `'right'` | Posisi dock di desktop (mobile selalu bottom) |
-| `chunkSize` | `2000` | Pecah teks panjang per N karakter (`0` = mati) |
-| `maxConcurrency` | `3` | Fetch paralel per annotate |
-| `loading` | `null` | Selector / `{ target, show }` indikator loading |
-
-### Mode tampilan
-
-- **`popup`** (default): hover (desktop) → popup transien berisi 1 bacaan + maks 4 definisi; popup langsung tertutup saat pointer keluar hanzi. Klik/tap → popup terpin (semua bacaan, bisa scroll).
-- **`docked`**: panel definisi — mobile jadi bottom sheet, desktop di kiri/kanan. Navigasi kata « » dan bacaan ‹ ›, auto-scroll ke hanzi aktif.
-- **`both`**: desktop = hover popup + klik dock bersamaan; mobile = tap popup + tombol ⇄ untuk pindah mode.
-
-Preferensi pengunjung (`displayMode`, tema, dll) tersimpan di `localStorage`
-(`cidict_prefs`); mobile dan desktop punya simpanan mode terpisah
-(`displayModeMobile`), dan nilai tersimpan selalu menang atas opsi
-`annotate()`. Footer "cidict.org" di popup/dock adalah link ke
-`https://cidict.org/kamus/?q=<hanzi>`.
-
-### Fungsi
-
-| Fungsi | Keterangan |
-|---|---|
-| `cidict.annotate(sel?, opt?)` | Anotasi elemen (Promise) |
-| `cidict.annotateText(text, opt?)` | Promise<string> HTML hasil anotasi |
-| `cidict.setDisplayMode(m)` | `'popup'` \| `'docked'` \| `'both'` |
-| `cidict.toggleDisplayMode()` | Toggle `popup` <> `docked` (tombol ⇄ di mobile) |
-| `cidict.togglePinyin()` / `toggleHanzi()` / `toggleTheme()` | Toggle tampilan (lihat `scripts/test_buttons.md`) |
-| `cidict.showPopups(b)` | Master switch UI definisi |
-| `cidict.showInline(b)` | Pinyin inline on/off |
-| `cidict.lookup(w)` / `cidict.health()` | Promise ke API langsung |
-| `cidict.unannotate(sel?)` / `cidict.destroy()` | Bersihkan anotasi |
-| `cidict.version` | Versi client |
-
-## Data kamus
-
-File data tidak ikut di repo (77 MB), diunduh terpisah dari CDN:
-
-- https://cdn.cidict.org/annotator/cc-cidict.db — database SQLite kamus
-- https://cdn.cidict.org/annotator/version.json — manifest (`version`, `databaseMd5`, `databaseSha256`, jumlah entri)
-
-Set `CIDICT_DB` ke path file `.db`, dan `CIDICT_DB_VERSION_FILE` ke
-`version.json` untuk mengaktifkan **hot reload**: setiap ada `version`
-baru, kamus + leksikon + prioritas pinyin dibangun ulang otomatis tanpa
-restart (DB korup/ditolak → versi lama tetap diserve). Prosedur update
-yang aman: upload `.db` baru dengan nama sementara lalu rename atomik,
-kemudian naikkan `version` di manifest.
-
-Dua file teks ikut mengatur perilaku kamus (reload via `POST /api/seg-reload`):
-
-- `segment_overrides.txt` — satu kata per baris = force-split (kata
-  di-demote, bukan dihapus, sehingga segmenter hampir selalu memecahnya).
-- `pinyin_priority.txt` — `<kata> = <pinyin>` memaksa urutan bacaan
-  (mis. `喝 = hē`); selain itu skor otomatis: partikel +10, marga −10,
-  kapital −4, arkais −3, varian −1, huruf kecil +1, sense + frekuensi.
-
-## Deploy VPS
+Build client:
 
 ```bash
-# di server
-git clone https://github.com/pseudovin/cidict-annotator.git /opt/cidict
-cd /opt/cidict && npm install --omit=dev && npm run build
-mkdir -p /opt/cidict-data
-curl -o /opt/cidict-data/cc-cidict.db https://cdn.cidict.org/annotator/cc-cidict.db
-curl -o /opt/cidict-data/version.json https://cdn.cidict.org/annotator/version.json
+npm run build
 ```
 
-`/etc/systemd/system/cidict.service`:
+Output:
 
-```ini
-[Unit]
-Description=CC-CIDICT Annotator
-After=network.target
-
-[Service]
-WorkingDirectory=/opt/cidict
-ExecStart=/usr/bin/node server.js
-Restart=always
-Environment=PORT=3100
-Environment=CIDICT_DB=/opt/cidict-data/cc-cidict.db
-Environment=CIDICT_DB_VERSION_FILE=/opt/cidict-data/version.json
-
-[Install]
-WantedBy=multi-user.target
+```text
+dist/cidict-annotator.min.js
 ```
 
-```bash
-systemctl enable --now cidict
+Backend:
+
+```text
+server.js
 ```
 
-Di depan pasang reverse proxy (nginx/Caddy) untuk TLS dan arahkan ke
-`http://127.0.0.1:3100`. Simpan file data **di luar** direktori aplikasi
-(mis. `/opt/cidict-data/`) agar tidak ikut ter-reset saat redeploy.
+Normalisasi dan prioritas pinyin:
 
-## Struktur repo
-
-```
-├── server.js                 # backend: API + static file server
-├── pinyin.js                 # normalisasi pinyin + skor prioritas bacaan
-├── segment_overrides.txt     # kata force-split (satu per baris)
-├── pinyin_priority.txt       # override prioritas bacaan
-├── src/cidict-annotator.js   # source client (single-file; CSS di dalam)
-├── dist/cidict-annotator.min.js  # hasil `npm run build` → /static/
-├── public/index.html         # halaman demo
-├── scripts/test_buttons.md   # contoh tombol toggle untuk frontend
-└── .env.example              # contoh konfigurasi
+```text
+pinyin.js
 ```
 
-Pengembangan client: edit `src/cidict-annotator.js` → `npm run build` →
-halaman demo memakai hasil build via `/static/`.
+Aturan segmentasi:
+
+```text
+segment_overrides.txt
+```
+
+Prioritas bacaan:
+
+```text
+pinyin_priority.txt
+```
+
+## Lisensi & Sumber Data
+
+CC-CIDICT Annotator menggunakan database dari **CC-CEDICT (© CC-CEDICT Contributors)**.
+Versi Bahasa Indonesia awal dikembangkan oleh [Harmony Mandarin](https://harmonymandarin.com/), dan diteruskan secara mandiri sebagai proyek CC-CIDICT.
+Didistribusikan di bawah lisensi Creative Commons Attribution–ShareAlike 4.0 International (CC BY-SA 4.0).
