@@ -2,7 +2,7 @@
 (function (global) {
   'use strict';
 
-  var VERSION = '2.0.2';
+  var VERSION = '2.0.3';
 
   var defaults = {
     apiBase: null,      // null = origin dari script ini (atau '' = origin halaman)
@@ -966,7 +966,10 @@
   // bila hanzi keluar dari view, popup ditutup.
   var scrollRaf = 0;
   function onScrollReposition(e) {
-    if (e && e.target && popupEl && popupEl.contains(e.target)) return; // scroll di dalam popup sendiri
+    // Abaikan scroll di dalam popup sendiri. Untuk resize, e.target =
+    // window (bukan Node) sehingga guard nodeType mencegah TypeError
+    // "parameter 1 is not of type 'Node'" dan lanjut ke reposisi.
+    if (e && e.target && e.target.nodeType && popupEl && popupEl.contains(e.target)) return; // scroll di dalam popup sendiri
     if (scrollRaf) return;
     scrollRaf = requestAnimationFrame(function () {
       scrollRaf = 0;
