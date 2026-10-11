@@ -16,9 +16,6 @@ import { normalizePinyin, sortReadings, normPinyin } from './pinyin.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // ---------- .env ----------
-// Parser .env minimal bawaan (tanpa dependensi): `KEY=value`, kutip
-// tunggal/ganda, komentar `#`, dan prefix `export `. Environment asli
-// selalu menang atas isi file.
 function loadDotenv() {
   let text;
   try {
@@ -47,28 +44,23 @@ function loadDotenv() {
 }
 loadDotenv();
 
-// Baca env dengan nama CIDICT_*.
 function env(key, dflt) {
   return process.env[key] !== undefined ? process.env[key] : dflt;
 }
 
 const VERSION = '1.0.0';
 const PORT = Number.parseInt(env('PORT', '3100'), 10) || 3100;
-// Path relatif dihitung dari direktori project (bukan cwd), agar stabil
-// dijalankan dari mana pun.
+// Path relatif dihitung dari direktori project (bukan cwd), agar stabil dijalankan dari mana pun.
 const DB_PATH = path.resolve(__dirname, env('CIDICT_DB', path.join('data', 'fixture.db')));
 const MIN_FREQ = Number.parseInt(env('CIDICT_MIN_FREQ', '1000'), 10) || 1000;
 const HMM = /^true$/i.test(env('CIDICT_HMM', 'false'));
 const OVERRIDES_FILE = path.join(__dirname, 'segment_overrides.txt');
-// Frekuensi untuk kata override: cukup kecil agar hampir selalu kalah
-// bersaing (terpecah), tapi tidak nol agar tetap graceful.
+// Frekuensi untuk kata override: cukup kecil agar hampir selalu kalah bersaing (terpecah), tapi tidak nol agar tetap graceful.
 const DEMOTE_FREQ = 1; // override force-split: frekuensi sangat kecil, bukan 0
 const MAX_CHARS = 20000;
 
 // ---------- segment overrides ----------
 
-// ./segment_overrides.txt: satu kata per baris; baris kosong dan
-// komentar (// atau #) diabaikan.
 function loadSplitWords() {
   const words = new Set();
   try {
@@ -134,7 +126,7 @@ function loadPinyinPriority(dbh = db) {
 // ---------- dictionary loading ----------
 // Kamus bisa di-reload tanpa restart saat file DB diganti. Deteksi perubahan:
 // - bila CIDICT_DB_VERSION_FILE diset: field `version` (integer) di file JSON
-//   tersebut (mis. manifest version.json updater APK; field lain diabaikan);
+//   tersebut (mis. manifest version.json; field lain diabaikan);
 // - bila tidak diset: mtime file DB (fallback).
 // Integritas file dipastikan via `databaseMd5` dari manifest (bila ada):
 // hash tak cocok -> DB ditolak (tanda file bukan yang dideskripsikan
@@ -199,8 +191,7 @@ function dbSignal() {
   return DB_VERSION_PATH ? 'v' + manifestVer : String(lastMtime);
 }
 
-// MD5 file secara sinkron per chunk 4MB (tanpa memuat seluruh file ke
-// memori). ~0,2 dtk untuk 77MB — murah untuk sekali jalan per update DB.
+// MD5 file secara sinkron per chunk 4MB (tanpa memuat seluruh file ke memori). ~0,2 dtk untuk 77MB — murah untuk sekali jalan per update DB.
 function fileMd5(file) {
   const h = createHash('md5');
   const fd = fs.openSync(file, 'r');
@@ -214,9 +205,8 @@ function fileMd5(file) {
   return h.digest('hex');
 }
 
-// Pastikan file DB persis seperti yang dideskripsikan manifest (anti
-// korup/truncated saat upload). Throw bila tak cocok. Tanpa databaseMd5
-// di manifest, atau bila CIDICT_DB_HASH_CHECK=false, cek di-skip.
+// Pastikan file DB persis seperti yang dideskripsikan manifest (anti korup/truncated saat upload). Throw bila tak cocok.
+// Tanpa databaseMd5 di manifest, atau bila CIDICT_DB_HASH_CHECK=false, cek di-skip.
 function verifyDbChecksum() {
   if (!HASH_CHECK || !manifestMd5) return;
   const t0 = Date.now();
@@ -277,8 +267,7 @@ function tryReloadDictionary(sig) {
   }
 }
 
-// Dipanggil tiap request sebelum cek versi cache. Gagal reload -> backoff
-// 30 detik agar DB bermasalah tidak membebani tiap request.
+// Dipanggil tiap request sebelum cek versi cache. Gagal reload -> backoff 30 detik agar DB bermasalah tidak membebani tiap request.
 function ensureCurrentDictionary() {
   const sig = dbSignal();
   if (sig === activeDbSignal) return;
@@ -409,9 +398,8 @@ function lookupCompact(word) {
 }
 
 // ---------- cache hasil annotate ----------
-// Dua tier: (1) memori (Map LRU) untuk kecepatan, (2) SQLite persisten agar
-// survive restart. Kunci = sha1(teks); purge saat versi data berubah
-// (mtime DB kamus / seg-reload). Kontrak API tidak berubah.
+// Dua tier: (1) memori (Map LRU) untuk kecepatan, (2) SQLite persisten agar survive restart.
+// Kunci = sha1(teks); purge saat versi data berubah (mtime DB kamus / seg-reload). Kontrak API tidak berubah.
 const CACHE_MAX = Math.max(0, Number.parseInt(env('CIDICT_CACHE_SIZE', '1000'), 10) || 0);
 const annotateCache = new Map(); // sha1(teks) -> { tokens, defs }
 let cacheStamp = null;           // versi data yang terlihat cache saat ini
@@ -423,8 +411,8 @@ function dataVersion() {
 }
 
 // ----- tier 2: cache disk (SQLite) -----
-// Path relatif dihitung dari direktori project (bukan cwd), sama seperti
-// CIDICT_DB. Kosongkan CIDICT_CACHE_FILE untuk mematikan tier ini.
+// Path relatif dihitung dari direktori project (bukan cwd), sama seperti CIDICT_DB.
+// Kosongkan CIDICT_CACHE_FILE untuk mematikan tier ini.
 const DISK_MAX = Math.max(0, Number.parseInt(env('CIDICT_CACHE_DISK_SIZE', '10000'), 10) || 0);
 const CACHE_FILE = env('CIDICT_CACHE_FILE', path.join('data', 'annotate-cache.db'));
 let diskDb = null;
@@ -562,8 +550,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // Rate limit sederhana untuk /api/annotate (tanpa dependensi):
-// sliding window per IP per 60 detik. Melindungi dari client yang tidak
-// bertanggung jawab (mis. maxConcurrency raksasa via curl langsung).
+// sliding window per IP per 60 detik.
 // 0 = nonaktif. Di belakang reverse proxy, IP diambil dari entri terakhir
 // X-Forwarded-For (yang ditambahkan proxy kita) hanya bila koneksi langsung
 // dari proxy lokal — entri pertama bisa di-spoof client.
