@@ -2,7 +2,7 @@
 (function (global) {
   'use strict';
 
-  var VERSION = '2.0.3';
+  var VERSION = '2.0.4';
 
   var defaults = {
     apiBase: null,      // null = origin dari script ini (atau '' = origin halaman)
@@ -13,8 +13,8 @@
     displayModeDesktop: 'popup', // simpanan mode desktop
     displayModeMobile: null,      // simpanan mode mobile (null = belum diatur)
     dockAlign: 'right',  // 'left' | 'right' (posisi dock di desktop; mobile selalu bottom)
-    chunkSize: 2000,    // pecah teks panjang per N karakter (0 = nonaktif)
-    maxConcurrency: 3,  // fetch paralel maks per annotate
+    chunkSize: 2000,    // pecah teks panjang per N karakter (0 = nonaktif; min 200)
+    maxConcurrency: 3,  // fetch paralel maks per annotate (1..6)
     loading: null,      // selector | { target, show } — indikator loading
   };
   var opts = {};
@@ -99,7 +99,20 @@
     var hadLoadingOpt = Object.prototype.hasOwnProperty.call(o, 'loading');
     for (var k in o) {
       if (k === 'displayMode') continue; // ditangani khusus di bawah
+      if (k === 'chunkSize' || k === 'maxConcurrency') continue; // divalidasi di bawah
       if (Object.prototype.hasOwnProperty.call(o, k) && o[k] !== undefined) opts[k] = o[k];
+    }
+    // Batas aman: chunkSize minimum 200 karakter (0 = nonaktif, tanpa
+    // chunking); maxConcurrency 1..6 mengikuti batas koneksi paralel
+    // per origin di browser. Mencegah client yang tidak bertanggung
+    // jawab membanjiri server dengan ribuan request kecil.
+    if (o.chunkSize !== undefined) {
+      var csz = o.chunkSize | 0;
+      opts.chunkSize = csz === 0 ? 0 : Math.max(200, csz);
+    }
+    if (o.maxConcurrency !== undefined) {
+      var mc = o.maxConcurrency | 0 || 3;
+      opts.maxConcurrency = Math.min(6, Math.max(1, mc));
     }
     // displayMode: simpanan visitor di localStorage menang atas opsi
     // annotate(); opsi hanya dipakai bila belum ada simpanan (fallback
