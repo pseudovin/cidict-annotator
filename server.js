@@ -561,7 +561,50 @@ app.get('/api/health', (req, res) => {
   res.json({ ok: true, version: VERSION, db_version: activeManifestVer, entries, hmm: HMM, split_words: splitWords });
 });
 
-app.post('/api/annotate', (req, res) => {
+// Rate limit sederhana untuk /api/annotate (tanpa dependensi):
+// sliding window per IP per 60 detik. Melindungi dari client yang tidak
+// bertanggung jawab (mis. maxConcurrency raksasa via curl langsung).
+// 0 = nonaktif. Di belakang reverse proxy, IP diambil dari entri terakhir
+// X-Forwarded-For (yang ditambahkan proxy kita) hanya bila koneksi langsung
+// dari proxy lokal — entri pertama bisa di-spoof client.
+const RATE_LIMIT = Number.parseInt(env('CIDICT_RATE_LIMIT', '120'), 10) || 0;
+const RL_WINDOW_MS = 60 * 1000;
+const rlHits = new Map(); // ip -> array timestamp
+let rlSweepAt = 0;
+
+function clientIp(req) {
+  const sock = req.socket && req.socket.remoteAddress;
+  const xff = req.headers['x-forwarded-for'];
+  if (xff && (sock === '127.0.0.1' || sock === '::1' || sock === '::ffff:127.0.0.1')) {
+    const parts = String(xff).split(',').map(s => s.trim()).filter(Boolean);
+    if (parts.length) return parts[parts.length - 1];
+  }
+  return sock || 'unknown';
+}
+
+function annotateRateLimit(req, res, next) {
+  if (!RATE_LIMIT) return next();
+  const now = Date.now();
+  if (now - rlSweepAt > RL_WINDOW_MS) { // sapu entri kedaluwarsa agar Map tak bocor
+    rlSweepAt = now;
+    for (const [ip, arr] of rlHits) {
+      while (arr.length && arr[0] <= now - RL_WINDOW_MS) arr.shift();
+      if (!arr.length) rlHits.delete(ip);
+    }
+  }
+  const ip = clientIp(req);
+  let arr = rlHits.get(ip);
+  if (!arr) { arr = []; rlHits.set(ip, arr); }
+  while (arr.length && arr[0] <= now - RL_WINDOW_MS) arr.shift();
+  if (arr.length >= RATE_LIMIT) {
+    res.setHeader('Retry-After', '60');
+    return res.status(429).json({ ok: false, error: 'rate limited' });
+  }
+  arr.push(now);
+  next();
+}
+
+app.post('/api/annotate', annotateRateLimit, (req, res) => {
   const text = req.body?.text;
   if (typeof text !== 'string') return res.sendStatus(400);
   const clipped = [...text].slice(0, MAX_CHARS).join('');
