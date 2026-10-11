@@ -375,6 +375,10 @@ curl -X POST http://127.0.0.1:3100/api/seg-reload
 # dari luar (dengan token)
 curl -X POST -H "Authorization: Bearer $TOKEN" https://api.cidict.org/api/seg-reload
 # atau: curl -X POST "https://api.cidict.org/api/seg-reload?token=$TOKEN"
+
+# via Console
+fetch('https://api.cidict.org/api/seg-reload/?token=<TOKEN>', { method: 'POST' })
+	.then(r => r.json()).then(console.log)
 ```
 
 ## Pengembangan

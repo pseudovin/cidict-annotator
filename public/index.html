@@ -3,94 +3,428 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CC-CIDICT Annotator — Demo</title>
+<title>API Anotasi Mandarin–Indonesia — CC-CIDICT</title>
+<meta name="description" content="API dan client JavaScript untuk anotasi teks Mandarin: pinyin inline + definisi Bahasa Indonesia. Dokumentasi, demo live, dan referensi endpoint.">
+<link rel="icon" href="https://cidict.org/wp-content/uploads/2025/10/cidict_site_logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-  body { font-family: system-ui, "Noto Sans", sans-serif; margin: 0; background: #fafafa; color: #222; }
-  main { max-width: 860px; margin: 0 auto; padding: 32px 20px 80px; }
-  h1 { font-size: 1.5em; }
-  h1 small { display: block; font-size: 0.6em; font-weight: 400; opacity: 0.65; margin-top: 4px; }
-  textarea { width: 100%; min-height: 110px; font-size: 17px; padding: 12px; border-radius: 8px;
-             border: 1px solid #ccc; background: #fff; color: #222; box-sizing: border-box; }
-  button { margin-top: 10px; padding: 10px 22px; font-size: 15px; border: 0; border-radius: 8px;
-           background: #1a73e8; color: #fff; font-weight: 700; cursor: pointer; }
-  button:hover { background: #3b8bf0; }
-  #out { margin-top: 22px; padding: 18px; border: 1px solid #ddd; border-radius: 10px;
-         background: #fff; min-height: 120px; font-size: 18px; line-height: 2.1; }
-  #out:empty::before { content: "Hasil anotasi muncul di sini — arahkan kursor ke kata untuk melihat definisi."; opacity: 0.5; font-size: 15px; }
-  .meta { margin-top: 14px; font-size: 12.5px; opacity: 0.6; }
-  .row { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
-  label { font-size: 13px; opacity: 0.85; }
-  .artikel { margin-top: 34px; padding: 18px; border: 1px solid #ddd; border-radius: 10px; background: #fff;
-             font-size: 18px; line-height: 2.1; }
-  .artikel h2 { font-size: 1.15em; margin: 0 0 10px; }
-  pre.snippet { background: #1b1b26; color: #d6e4ff; padding: 14px; border-radius: 8px; font-size: 13px; overflow-x: auto; }
+  :root {
+    --primary: #1950d1;
+    --primary-dark: #1240ad;
+    --ink: #1a1d23;
+    --muted: #5b6472;
+    --line: #e6e9f0;
+    --bg: #ffffff;
+    --bg-soft: #f5f7fc;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    margin: 0; background: var(--bg); color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--primary); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* ---------- header ---------- */
+  .topbar {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(255,255,255,.92); backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--line);
+  }
+  .topbar-inner {
+    max-width: 1080px; margin: 0 auto; padding: 12px 24px;
+    display: flex; align-items: center; gap: 14px;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 17px; color: var(--ink); }
+  .brand img { width: 34px; height: 34px; border-radius: 8px; }
+  .brand small { font-weight: 600; color: var(--muted); font-size: 12px; display: block; line-height: 1.1; }
+  .nav { margin-left: auto; display: flex; gap: 4px; align-items: center; }
+  .nav a { padding: 8px 12px; border-radius: 8px; font-size: 14px; font-weight: 600; color: var(--ink); }
+  .nav a:hover { background: var(--bg-soft); text-decoration: none; }
+  .status-pill {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 12.5px; font-weight: 600; color: #137333;
+    background: #e6f4ea; border: 1px solid #b7e0c3;
+    padding: 6px 12px; border-radius: 999px; white-space: nowrap;
+  }
+  .status-pill .dot { width: 8px; height: 8px; border-radius: 50%; background: #1da851; animation: pulse 2s infinite; }
+  .status-pill.down { color: #a50e0e; background: #fce8e6; border-color: #f5b7b1; }
+  .status-pill.down .dot { background: #d93025; animation: none; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .45; } }
+
+  main { max-width: 1080px; margin: 0 auto; padding: 0 24px 80px; }
+  section { padding: 56px 0 8px; }
+  section h2 { font-size: 28px; margin: 0 0 8px; letter-spacing: -.02em; }
+  section .lede { color: var(--muted); font-size: 16.5px; max-width: 720px; margin: 0 0 28px; line-height: 1.65; }
+
+  /* ---------- hero ---------- */
+  .hero { padding: 72px 0 24px; max-width: 760px; }
+  .hero h1 { font-size: 44px; line-height: 1.12; margin: 0 0 16px; letter-spacing: -.03em; }
+  .hero h1 .accent { color: var(--primary); }
+  .hero p { font-size: 17px; color: var(--muted); line-height: 1.7; margin: 0 0 28px; }
+  .cta { display: flex; gap: 12px; flex-wrap: wrap; }
+  .btn {
+    display: inline-block; padding: 13px 26px; border-radius: 10px;
+    font-weight: 700; font-size: 15px; border: 1px solid transparent; cursor: pointer;
+  }
+  .btn-primary { background: var(--primary); color: #fff; }
+  .btn-primary:hover { background: var(--primary-dark); text-decoration: none; color: #fff; }
+  .btn-ghost { background: #fff; color: var(--ink); border-color: var(--line); }
+  .btn-ghost:hover { background: var(--bg-soft); text-decoration: none; }
+
+  /* ---------- demo ---------- */
+  .card { border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; background: #fff; }
+  .card h3 { margin: 0 0 12px; font-size: 15px; }
+  .demo-controls { display: flex; gap: 18px; flex-wrap: wrap; align-items: center; margin: 0 0 20px; }
+  .seg { display: inline-flex; background: var(--bg-soft); border: 1px solid var(--line); border-radius: 999px; padding: 4px; gap: 2px; }
+  .seg button {
+    border: 0; background: transparent; padding: 8px 18px; border-radius: 999px;
+    font-family: inherit; font-size: 13.5px; font-weight: 600; color: var(--muted); cursor: pointer;
+  }
+  .seg button.active { background: var(--primary); color: #fff; }
+  .toggle-btn {
+    border: 1px solid var(--line); background: #fff; padding: 8px 16px; border-radius: 999px;
+    font-family: inherit; font-size: 13.5px; font-weight: 600; color: var(--ink); cursor: pointer;
+  }
+  .toggle-btn:hover { border-color: var(--primary); }
+  .toggle-btn .state { color: var(--primary); font-weight: 800; }
+  .demo-text { font-size: 20px; line-height: 2.4; padding: 26px; }
+  .tip { margin-top: 14px; font-size: 13.5px; color: var(--muted); }
+
+  /* ---------- code ---------- */
+  pre {
+    background: #131722; color: #dbe4ff; padding: 20px 22px; border-radius: var(--radius);
+    font-size: 13.5px; line-height: 1.7; overflow-x: auto; position: relative;
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  }
+  .code-wrap { position: relative; }
+  .copy-btn {
+    position: absolute; top: 10px; right: 10px; font-size: 12px; font-weight: 700;
+    background: rgba(255,255,255,.1); color: #fff; border: 1px solid rgba(255,255,255,.2);
+    padding: 6px 12px; border-radius: 8px; cursor: pointer;
+  }
+  .copy-btn:hover { background: rgba(255,255,255,.2); }
+  .steps { display: grid; gap: 14px; counter-reset: step; margin-top: 24px; }
+  .step { display: grid; grid-template-columns: 44px 1fr; gap: 16px; align-items: start; }
+  .step::before {
+    counter-increment: step; content: counter(step);
+    width: 44px; height: 44px; border-radius: 50%;
+    background: var(--primary); color: #fff; font-weight: 800; font-size: 18px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .step h3 { margin: 4px 0 10px; font-size: 16.5px; }
+
+  /* ---------- endpoints ---------- */
+  .ep { border: 1px solid var(--line); border-radius: var(--radius); margin-bottom: 14px; overflow: hidden; }
+  .ep-head { display: flex; gap: 12px; align-items: center; padding: 16px 20px; background: var(--bg-soft); flex-wrap: wrap; }
+  .method {
+    font-size: 12px; font-weight: 800; padding: 5px 10px; border-radius: 6px;
+    letter-spacing: .04em; color: #fff; min-width: 52px; text-align: center;
+  }
+  .method.get { background: #1a7f37; } .method.post { background: var(--primary); }
+  .ep-path { font-family: ui-monospace, Menlo, Consolas, monospace; font-weight: 700; font-size: 15px; }
+  .ep-body { padding: 18px 20px; font-size: 14.5px; color: var(--muted); line-height: 1.7; }
+  .ep-body code { background: var(--bg-soft); border: 1px solid var(--line); border-radius: 6px; padding: 2px 7px; font-size: 13px; color: var(--ink); }
+  .tag {
+    font-size: 11px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase;
+    padding: 4px 10px; border-radius: 999px; background: #fef3c7; color: #92400e; border: 1px solid #fcd34d;
+  }
+  table.opts { width: 100%; border-collapse: collapse; font-size: 14.5px; margin-top: 8px; }
+  table.opts th, table.opts td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  table.opts th { font-size: 12.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  table.opts code { background: var(--bg-soft); border: 1px solid var(--line); border-radius: 6px; padding: 2px 7px; font-size: 13px; }
+  table.opts td { line-height: 1.6; }
+
+  .note {
+    border-left: 4px solid var(--primary); background: var(--bg-soft);
+    padding: 16px 20px; border-radius: 0 var(--radius) var(--radius) 0;
+    font-size: 14.5px; line-height: 1.7; color: var(--muted); margin-top: 20px;
+  }
+  .note strong { color: var(--ink); }
+
+  /* ---------- self-host CTA ---------- */
+  .selfhost-card {
+    background: linear-gradient(135deg, #1950d1 0%, #0c369e 100%);
+    border-radius: 18px; padding: 44px; color: #fff;
+    display: grid; grid-template-columns: 72px 1fr auto; gap: 30px; align-items: center;
+    position: relative; overflow: hidden;
+    box-shadow: 0 18px 44px -18px rgba(25,80,209,.55);
+  }
+  .selfhost-card::before {
+    content: ""; position: absolute; right: -70px; top: -70px;
+    width: 260px; height: 260px; border-radius: 50%; background: rgba(255,255,255,.09);
+  }
+  .selfhost-card::after {
+    content: ""; position: absolute; right: 90px; bottom: -110px;
+    width: 190px; height: 190px; border-radius: 50%; background: rgba(255,255,255,.06);
+  }
+  .selfhost-icon {
+    width: 72px; height: 72px; border-radius: 18px; flex: none;
+    background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.25);
+    display: flex; align-items: center; justify-content: center; position: relative; z-index: 1;
+  }
+  .selfhost-card h2 { color: #fff; margin: 0 0 10px; font-size: 26px; letter-spacing: -.02em; position: relative; z-index: 1; }
+  .selfhost-card p { color: rgba(255,255,255,.88); margin: 0; font-size: 15.5px; line-height: 1.65; position: relative; z-index: 1; }
+  .selfhost-card p code { background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.25); border-radius: 6px; padding: 1px 7px; font-size: 13px; color: #fff; }
+  .btn-light {
+    background: #fff; color: var(--primary); font-weight: 800; white-space: nowrap;
+    position: relative; z-index: 1; box-shadow: 0 6px 18px -6px rgba(0,0,0,.35);
+  }
+  .btn-light:hover { background: #eef3ff; text-decoration: none; color: var(--primary-dark); }
+
+  footer { border-top: 1px solid var(--line); margin-top: 64px; padding: 32px 24px; }
+  .foot-inner { max-width: 1080px; margin: 0 auto; display: flex; gap: 24px; align-items: center; flex-wrap: wrap; font-size: 13.5px; color: var(--muted); }
+  .foot-inner .spacer { margin-left: auto; display: flex; gap: 18px; }
+
+  @media (max-width: 820px) {
+    .hero { padding-top: 48px; }
+    .hero h1 { font-size: 32px; }
+    .nav a:not(.keep) { display: none; }
+    .selfhost-card { grid-template-columns: 1fr; padding: 32px 28px; gap: 20px; }
+    .selfhost-icon { width: 56px; height: 56px; }
+  }
 </style>
 </head>
 <body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="/" style="text-decoration:none">
+      <img src="https://cidict.org/wp-content/uploads/2025/10/cidict_site_logo.png" alt="CC-CIDICT">
+      <span>CC-CIDICT<small>API Anotasi</small></span>
+    </a>
+    <span class="status-pill" id="statusPill"><span class="dot"></span><span id="statusText">menghubungi…</span></span>
+    <nav class="nav">
+      <a href="#demo">Demo</a>
+      <a href="#mulai">Cara Pakai</a>
+      <a href="#kustomisasi">Kustomisasi</a>
+      <a href="#endpoint">Endpoint</a>
+      <a href="https://github.com/pseudovin/cidict-annotator" class="keep"><svg data-component="Octicon" aria-hidden="true" focusable="false" class="octicon octicon-mark-github" viewBox="0 0 24 24" width="16" height="16" fill="currentColor" display="inline-block" overflow="visible" style="vertical-align: text-bottom;"><path d="M10.226 17.284c-2.965-.36-5.054-2.493-5.054-5.256 0-1.123.404-2.336 1.078-3.144-.292-.741-.247-2.314.09-2.965.898-.112 2.111.36 2.83 1.01.853-.269 1.752-.404 2.853-.404 1.1 0 1.999.135 2.807.382.696-.629 1.932-1.1 2.83-.988.315.606.36 2.179.067 2.942.72.854 1.101 2 1.101 3.167 0 2.763-2.089 4.852-5.098 5.234.763.494 1.28 1.572 1.28 2.807v2.336c0 .674.561 1.056 1.235.786 4.066-1.55 7.255-5.615 7.255-10.646C23.5 6.188 18.334 1 11.978 1 5.62 1 .5 6.188.5 12.545c0 4.986 3.167 9.12 7.435 10.669.606.225 1.19-.18 1.19-.786V20.63a2.9 2.9 0 0 1-1.078.224c-1.483 0-2.359-.808-2.987-2.313-.247-.607-.517-.966-1.034-1.033-.27-.023-.359-.135-.359-.27 0-.27.45-.471.898-.471.652 0 1.213.404 1.797 1.235.45.651.921.943 1.483.943.561 0 .92-.202 1.437-.719.382-.381.674-.718.944-.943"></path></svg> GitHub</a>
+    </nav>
+  </div>
+</header>
+
 <main>
-  <h1>CC-CIDICT Annotator <small>demo v2 — pinyin inline + popup definisi (hover)</small></h1>
-
-  <textarea id="in">我去中国旅游。这个字段必须是非空的。这里有水，你可以喝。我想来这里看看。我在北京大学学习生命科学。</textarea>
-  <div class="row">
-    <button id="go">Annotate</button>
-    <label><input type="checkbox" id="ckInline" checked> pinyin inline</label>
-    <label><input type="checkbox" id="ckPopup" checked> popup</label>
-    <label><input type="checkbox" id="ckTheme"> tema gelap (popup)</label>
+  <!-- HERO -->
+  <div class="hero">
+    <h1>API Anotasi <span class="accent">Mandarin–Indonesia</span></h1>
+    <p>Segmentasi kata, pinyin, dan definisi Bahasa Indonesia dari database CC-CIDICT — lewat REST API atau satu script JavaScript yang siap ditempel ke website mana pun.</p>
+    <div class="cta">
+      <a class="btn btn-primary" href="#demo">Coba demo live</a>
+      <a class="btn btn-ghost" href="#endpoint">Referensi endpoint</a>
+    </div>
   </div>
 
-  <div id="loader">LOADING...</div>
+  <!-- DEMO -->
+  <section id="demo">
+    <h2>Live Demo</h2>
+    <p class="lede">Arahkan kursor ke kata Mandarin pada desktop, atau tap pada perangkat mobile. Coba mode tampilan yang berbeda untuk melihat bagaimana definisi ditampilkan.</p>
+    <div class="demo-controls">
+      <div class="seg" id="modeSeg">
+        <button data-mode="popup">Popup</button>
+        <button data-mode="docked">Docked</button>
+        <button data-mode="both" class="active">Both</button>
+      </div>
+      <button class="toggle-btn" id="tglPinyin">Pinyin: <span class="state">ON</span></button>
+      <button class="toggle-btn" id="tglHanzi">Hanzi: <span class="state">Simplified</span></button>
+      <button class="toggle-btn" id="tglTheme">Tema: <span class="state">Light</span></button>
+    </div>
+    <div class="card demo-text" id="demoText">
+      <p>学习中文不一定很难。每天读一点文章、查几个生词，你会发现自己的中文越来越好。</p>
+    </div>
+    <p class="tip">Tip: klik atau tap kata Mandarin untuk melihat informasi yang lebih lengkap.</p>
+  </section>
 
-  <div id="out"></div>
-  <div class="meta" id="meta"></div>
+  <!-- QUICK START -->
+  <section id="mulai">
+    <h2>Cara pakai di website</h2>
+    <p class="lede">Tidak perlu install database atau menjalankan backend sendiri. Cukup muat client dan panggil satu fungsi.</p>
+    <div class="steps">
+      <div class="step">
+        <div>
+          <h3>Tambahkan script annotator</h3>
+          <div class="code-wrap">
+            <button class="copy-btn" data-copy="snip1">Salin</button>
+            <pre id="snip1">&lt;script src="https://api.cidict.org/static/cidict-annotator.min.js" charset="UTF-8"&gt;&lt;/script&gt;</pre>
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div>
+          <h3>Anotasi elemen yang diinginkan</h3>
+          <div class="code-wrap">
+            <button class="copy-btn" data-copy="snip2">Salin</button>
+            <pre id="snip2">&lt;script&gt;
+  cidict.annotate('.chinese-text', { theme: 'light' });
+&lt;/script&gt;</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="note">Preferensi seperti tema dan mode tampilan tersimpan otomatis di browser pengunjung (localStorage).</div>
+  </section>
 
-  <div class="artikel" id="artikel">
-    <h2>Contoh artikel</h2>
-	<h3>我在纠结该点哪份外卖时竟展开了一场脑内学术辩论</h3>
-	<p>午休时间一到，我的肚子就准时发出了抗议。我盯着外卖软件，屏幕上的菜品琳琅满目，我却陷入了僵局。这不仅仅是一次简单的点餐，更是一场关乎生存质量的灵魂拷问。就在我犹豫不决之际，我的大脑里竟然莫名其妙地拉开了一场辩论赛的帷幕。</p>
+  <!-- KUSTOMISASI -->
+  <section id="kustomisasi">
+    <h2>Kustomisasi</h2>
+    <p class="lede">Sesuaikan tampilan dan perilaku — mulai dari pengaturan sederhana hingga kontrol untuk situs dengan konten panjang.</p>
+    <table class="opts">
+      <tr><th style="width:170px">Opsi</th><th style="width:260px">Nilai</th><th>Keterangan</th></tr>
+      <tr><td><code>theme</code></td><td><code>light</code> (default) | <code>dark</code></td><td>Warna tema UI popup &amp; dock</td></tr>
+      <tr><td><code>showInline</code></td><td><code>true</code> (default) | <code>false</code></td><td>Tampilkan atau sembunyikan pinyin inline</td></tr>
+      <tr><td><code>showPopups</code></td><td><code>true</code> (default) | <code>false</code></td><td>Aktifkan atau nonaktifkan UI definisi</td></tr>
+      <tr><td><code>displayMode</code></td><td><code>popup</code> (default) | <code>docked</code> | <code>both</code></td><td>Tampilan UI definisi</td></tr>
+      <tr><td><code>dockAlign</code></td><td><code>left</code> | <code>right</code> (default)</td><td>Posisi panel dock pada desktop</td></tr>
+      <tr><td><code>loading</code></td><td>selector | <code>{ target, show }</code></td><td>(Opsional) Elemen indikator loading</td></tr>
+      <tr><td><code>chunkSize</code></td><td><code>200</code>–<code>10000</code> (default <code>2000</code>)</td><td>Ukuran potongan teks untuk konten panjang; isi <code>0</code> untuk menonaktifkan</td></tr>
+      <tr><td><code>maxConcurrency</code></td><td><code>1</code>–<code>6</code> (default <code>3</code>)</td><td>Maksimum request anotasi paralel</td></tr>
+    </table>
+    <h3 style="margin:28px 0 12px">Contoh penggunaan lengkap</h3>
+    <div class="code-wrap">
+      <button class="copy-btn" data-copy="snip3">Salin</button>
+      <pre id="snip3">cidict.annotate('.artikel', {
+  theme: 'light',
+  showInline: true,
+  showPopups: true,
+  displayMode: 'both',
+  dockAlign: 'right',
+  chunkSize: 2000,
+  maxConcurrency: 3
+});</pre>
+    </div>
+  </section>
 
-	<p>正方是我内心的“理性派学者”，他清了清嗓子，严肃地指出当今社会人类普遍缺乏膳食纤维，而一份清爽的轻食沙拉不仅能提供必要的维生素，还能有效维持血糖稳定，避免下午工作时出现碳水晕厥。他甚至引用了最新的营养学期刊，强调控制油脂摄入才是当代青年应有的自律。</p>
+  <!-- ENDPOINTS -->
+  <section id="endpoint">
+    <h2>Referensi endpoint</h2>
+    <p class="lede">Base URL: <code>https://api.cidict.org</code>. Semua response berformat JSON.</p>
 
-	<p>反方则是“感性派泰斗”，他嗤之以鼻，立刻从心理学角度进行反驳。他认为，经过一上午的高压工作，我的多巴胺水平已经跌至谷底，此时只有高油高盐的麻辣香锅才能刺激味蕾，促使大脑分泌内啡肽，从而完成自我疗愈。吃草不过是自欺欺人，真正的满足感来源于热气腾腾的碳水与辣椒的碰撞。</p>
+    <div class="ep">
+      <div class="ep-head"><span class="method get">GET</span><span class="ep-path">/api/health</span></div>
+      <div class="ep-body">Status server: versi backend, versi data kamus, jumlah entri aktif, dan mode segmentasi. Cocok untuk monitoring &amp; smoke test.</div>
+    </div>
 
-	<p>两派唇枪舌剑，从卡路里计算一路辩论到存在主义危机。正当他们争论短期的快乐与长期的健康究竟哪个更具哲学意义时，我的手机因为长时间没有操作自动息屏了。看着黑掉的屏幕，我长叹一口气，最终默默点开了一碗白粥。这场没有硝烟的战争，终究是我败给了饥饿。</p>
-  </div>
+    <div class="ep">
+      <div class="ep-head"><span class="method post">POST</span><span class="ep-path">/api/annotate</span></div>
+      <div class="ep-body">
+        Body JSON: <code>{ "text": "…" }</code> → balasan <code>{ tokens, defs, v }</code> berisi hasil segmentasi kata, pinyin, dan definisi.<br>
+        <strong>Rate limit:</strong> 120 request/menit per IP (HTTP 429 + header <code>Retry-After</code> bila terlampaui). Untuk teks panjang, pecah menjadi beberapa request (client bawaan melakukannya otomatis via <code>chunkSize</code>).
+      </div>
+    </div>
 
-  <h2>Integrasi satu script</h2>
-  <pre class="snippet">&lt;script src="//api.cidict.org/static/cidict-annotator.min.js" charset="UTF-8"&gt;&lt;/script&gt;
-&lt;script&gt;cidict.annotate('.artikel', { theme: 'light' });&lt;/script&gt;</pre>
+    <div class="ep">
+      <div class="ep-head"><span class="method get">GET</span><span class="ep-path">/api/lookup?text=…</span></div>
+      <div class="ep-body">Definisi ringkas untuk satu kata/frasa. Contoh: <code>/api/lookup?text=%E5%AD%A6%E4%B9%A0</code></div>
+    </div>
+
+    <div class="ep">
+      <div class="ep-head"><span class="method post">POST</span><span class="ep-path">/api/seg-reload</span><span class="tag">admin</span></div>
+      <div class="ep-body">Muat ulang konfigurasi &amp; bangun ulang leksikon tanpa restart server. Dari localhost bebas token; dari luar wajib token (<code>Authorization: Bearer</code> atau <code>?token=</code>).</div>
+    </div>
+  </section>
+
+  <!-- SELF-HOST -->
+  <section id="selfhost" style="padding-top:40px">
+    <div class="selfhost-card">
+      <div class="selfhost-icon">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="3" width="20" height="7" rx="2"/><rect x="2" y="14" width="20" height="7" rx="2"/>
+          <line x1="6" y1="6.5" x2="6.01" y2="6.5"/><line x1="6" y1="17.5" x2="6.01" y2="17.5"/>
+        </svg>
+      </div>
+      <div>
+        <h2>Ingin menjalankan backend sendiri?</h2>
+        <p>Backend tersedia sebagai project Node.js — cukup <code>npm start</code> di VPS atau server apa pun yang mendukung Node.js 22.5+. Kamu pegang penuh data, rate limit, dan konfigurasi.</p>
+      </div>
+      <a class="btn btn-light" href="https://github.com/pseudovin/cidict-annotator">Panduan deploy di GitHub →</a>
+    </div>
+  </section>
+
+  <!-- LINKS -->
+  <section id="tautan">
+    <h2>Tautan</h2>
+    <p class="lede">Sumber daya terkait proyek CC-CIDICT.</p>
+    <table class="opts">
+      <tr><th style="width:220px">Tautan</th><th>Keterangan</th></tr>
+      <tr><td><a href="https://cidict.org/demo-anotasi-hanzi-dengan-cc-cidict/">Halaman produk &amp; demo</a></td><td>Penjelasan lengkap annotator untuk pemilik website, di situs utama CC-CIDICT.</td></tr>
+      <tr><td><a href="https://github.com/pseudovin/cidict-annotator">Kode sumber</a></td><td>Repo GitHub: client, server, dokumentasi teknis, dan panduan self-host.</td></tr>
+      <tr><td><a href="https://cidict.org/">cidict.org</a></td><td>Kamus Mandarin–Indonesia CC-CIDICT.</td></tr>
+    </table>
+  </section>
 </main>
+
+<footer>
+  <div class="foot-inner">
+    <span>CC-CIDICT Annotator — didukung database <a href="https://cidict.org/">CC-CIDICT</a> (CC BY-SA 4.0).</span>
+    <span class="spacer">
+      <a href="https://github.com/pseudovin/cidict-annotator">GitHub</a>
+      <a href="https://cidict.org/">Kamus</a>
+    </span>
+  </div>
+</footer>
 
 <script src="/static/cidict-annotator.min.js" charset="UTF-8"></script>
 <script>
-  function run() {
-    var text = document.getElementById("in").value;
-    cidict.annotateText(text).then(function (html) {
-      document.getElementById("out").innerHTML = html;
-    }).catch(function (err) {
-      document.getElementById("out").textContent = "Error: " + err.message;
+  // ---- status API (pill di header) ----
+  cidict.health().then(function () {
+    document.getElementById('statusText').textContent = 'API online';
+  }).catch(function () {
+    var pill = document.getElementById('statusPill');
+    pill.classList.add('down');
+    document.getElementById('statusText').textContent = 'API tidak terjangkau';
+  });
+
+  // ---- demo: anotasi contoh (state awal dipaksa default agar konsisten) ----
+  cidict.showInline(true);
+  cidict.toggleHanzi(false);
+  cidict.theme('light');
+  cidict.setDisplayMode('both');
+  cidict.annotate('#demoText');
+
+  // ---- demo: ganti mode tampilan ----
+  document.querySelectorAll('#modeSeg button').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      cidict.setDisplayMode(btn.getAttribute('data-mode'));
+      document.querySelectorAll('#modeSeg button').forEach(function (b) {
+        b.classList.toggle('active', b === btn);
+      });
+    });
+  });
+
+  // ---- demo: toggle pinyin / hanzi / tema ----
+  function wireToggle(id, get, set) {
+    var btn = document.getElementById(id);
+    var label = btn.querySelector('.state');
+    btn.addEventListener('click', function () {
+      var next = set(!get());
+      label.textContent = next;
     });
   }
-
-  document.getElementById("go").addEventListener("click", run);
-  document.getElementById("ckInline").addEventListener("change", function (e) {
-    cidict.showInline(e.target.checked);
+  var pinyinOn = true, tradOn = false, darkOn = false;
+  wireToggle('tglPinyin', function () { return pinyinOn; }, function (v) {
+    pinyinOn = v; cidict.showInline(v); return v ? 'ON' : 'OFF';
   });
-  document.getElementById("ckPopup").addEventListener("change", function (e) {
-    cidict.showPopups(e.target.checked);
+  wireToggle('tglHanzi', function () { return tradOn; }, function (v) {
+    tradOn = v; cidict.toggleHanzi(v); return v ? 'Traditional' : 'Simplified';
   });
-  document.getElementById("ckTheme").addEventListener("change", function (e) {
-    cidict.theme(e.target.checked ? "dark" : "light");
+  wireToggle('tglTheme', function () { return darkOn; }, function (v) {
+    darkOn = v; cidict.theme(v ? 'dark' : 'light'); return v ? 'Dark' : 'Light';
   });
 
-  cidict.health().then(function (h) {
-    document.getElementById("meta").textContent =
-      "backend v" + h.version + " — " + h.entries + " entri aktif — HMM " +
-      (h.hmm ? "on" : "off") + " — force-split: " + (h.split_words || []).join(", ");
-  }).catch(function () {});
-
-  // Contoh integrasi ala pemakaian nyata: anotasi paragraf artikel.
-  cidict.annotate("#artikel p", { loading: '#loader', displayMode: 'both' });
-  run();
+  // ---- tombol salin ----
+  document.querySelectorAll('.copy-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var el = document.getElementById(btn.getAttribute('data-copy'));
+      navigator.clipboard.writeText(el.textContent).then(function () {
+        btn.textContent = 'Disalin!';
+        setTimeout(function () { btn.textContent = 'Salin'; }, 1500);
+      });
+    });
+  });
 </script>
 </body>
 </html>
