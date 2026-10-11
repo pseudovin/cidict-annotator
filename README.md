@@ -163,6 +163,9 @@ CIDICT_HMM=false
 CIDICT_CACHE_SIZE=1000
 CIDICT_CACHE_FILE=/opt/cidict-data/annotate-cache.db
 CIDICT_CACHE_DISK_SIZE=10000
+
+CIDICT_RATE_LIMIT=120
+CIDICT_RELOAD_TOKEN=
 ```
 
 Variabel utama:
@@ -178,6 +181,8 @@ Variabel utama:
 | `CIDICT_CACHE_SIZE` | `1000` | Cache memori LRU; `0` untuk menonaktifkan |
 | `CIDICT_CACHE_FILE` | path cache lokal | Cache SQLite persisten; kosongkan untuk menonaktifkan |
 | `CIDICT_CACHE_DISK_SIZE` | `10000` | Jumlah maksimum entri cache disk |
+| `CIDICT_RATE_LIMIT` | `120` | Rate limit `POST /api/annotate`: maks request per IP per 60 detik; `0` = nonaktif |
+| `CIDICT_RELOAD_TOKEN` | kosong | Token proteksi `POST /api/seg-reload`; koneksi langsung dari localhost bebas token |
 
 ### 4. Jalankan
 
@@ -278,9 +283,9 @@ Backend menyediakan API untuk annotasi dan lookup:
 | Endpoint | Keterangan |
 |---|---|
 | `GET /api/health` | Status service dan metadata database |
-| `POST /api/annotate` | Segmentasi + pinyin + definisi |
+| `POST /api/annotate` | Segmentasi + pinyin + definisi (rate limit 120 req/menit/IP) |
 | `GET /api/lookup?text=喝` | Lookup satu kata |
-| `POST /api/seg-reload` | Reload aturan segmentasi dan prioritas pinyin |
+| `POST /api/seg-reload` | Reload aturan segmentasi dan prioritas pinyin (dari localhost bebas token; dari luar wajib token) |
 | `GET /static/cidict-annotator.min.js` | Client JavaScript |
 | `GET /` | Halaman demo |
 
@@ -334,7 +339,7 @@ píng ān           → píng'ān
 Běi jīng Dà xué   → Běijīng Dàxué
 ```
 
-Teks yang dikirim ke endpoint anotasi dibatasi hingga **20.000 karakter**. Client dapat memecah teks panjang menjadi beberapa chunk dan menjalankan request secara paralel.
+Teks yang dikirim ke endpoint anotasi dibatasi hingga **20.000 karakter**. Client dapat memecah teks panjang menjadi beberapa chunk dan menjalankan request secara paralel. Endpoint ini juga dilindungi rate limit **120 request/menit per IP** (HTTP `429` + header `Retry-After` bila terlampaui).
 
 ## Kustomisasi Segmentasi dan Pinyin
 
