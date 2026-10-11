@@ -22,24 +22,24 @@ Anda tidak perlu deploy backend sendiri. Untuk menggunakan annotator di website,
 ```html
 <script src="//api.cidict.org/static/cidict-annotator.min.js" charset="UTF-8"></script>
 <script>
-  cidict.annotate('.artikel', { theme: 'light' });
+  cidict.annotate('.chinese-text', { theme: 'light' });
 </script>
 ```
 
 Contoh:
 
 ```html
-<p class="artikel">
+<p class="chinese-text">
   这个故事特别有意思。
 </p>
 
 <script src="//api.cidict.org/static/cidict-annotator.min.js" charset="UTF-8"></script>
 <script>
-  cidict.annotate('.artikel');
+  cidict.annotate('.chinese-text');
 </script>
 ```
 
-`'.artikel'` adalah selector CSS untuk elemen yang ingin dianotasi.
+`'.chinese-text'` adalah selector CSS untuk elemen yang ingin dianotasi.
 
 Secara default, client menggunakan **origin tempat file JavaScript dimuat** sebagai `apiBase`. Dengan contoh di atas, request API otomatis diarahkan ke `api.cidict.org`.
 
@@ -50,7 +50,7 @@ cidict.configure({
   apiBase: 'https://api.example.org'
 });
 
-cidict.annotate('.artikel', {
+cidict.annotate('.chinese-text', {
   theme: 'light',
   displayMode: 'popup'
 });
@@ -165,7 +165,7 @@ CIDICT_CACHE_FILE=/opt/cidict-data/annotate-cache.db
 CIDICT_CACHE_DISK_SIZE=10000
 
 CIDICT_RATE_LIMIT=120
-CIDICT_RELOAD_TOKEN=
+CIDICT_RELOAD_TOKEN=TULIS_TOKEN_UNIK_DAN_PANJANG_DISINI
 ```
 
 Variabel utama:
@@ -273,6 +273,7 @@ backend mendeteksi versi baru
        ↓
 database di-reload
 ```
+Pastikan nama file database (DB) sudah sesuai dengan nilai `CIDICT_DB` di file `.env`.
 
 Jangan memperbarui `version.json` sebelum database baru tersedia sepenuhnya.
 
