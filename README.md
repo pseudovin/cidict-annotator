@@ -65,8 +65,8 @@ Opsi yang tersedia:
 | `showPopups` | `true` | Tampilkan popup/panel definisi |
 | `displayMode` | `'popup'` | `'popup'`, `'docked'`, atau `'both'` |
 | `dockAlign` | `'right'` | Posisi dock desktop: `'left'` atau `'right'` |
-| `chunkSize` | `2000` | Ukuran chunk untuk teks panjang; `0` untuk menonaktifkan |
-| `maxConcurrency` | `3` | Jumlah request anotasi paralel |
+| `chunkSize` | `2000` | Ukuran chunk untuk teks panjang; `0` = nonaktif; min `200` |
+| `maxConcurrency` | `3` | Jumlah request anotasi paralel; batas `1`–`6` |
 | `loading` | `null` | Selector atau `{ target, show }` untuk indikator loading |
 
 ### Mode Tampilan
