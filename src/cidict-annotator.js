@@ -2,7 +2,7 @@
 (function (global) {
   'use strict';
 
-  var VERSION = '2.0.4';
+  var VERSION = '2.0.5';
 
   var defaults = {
     apiBase: null,      // null = origin dari script ini (atau '' = origin halaman)
@@ -267,8 +267,7 @@
   function buildPopupContent(word, entry) {
     var frag = document.createDocumentFragment();
     var head = el('div', 'cidict-head');
-    head.appendChild(document.createTextNode(word));
-    if (entry.t) head.appendChild(el('span', 'cidict-trad', ' [' + entry.t + ']'));
+    renderHead(head, word, entry);
     frag.appendChild(head);
     (entry.r || []).forEach(function (rd) {
       var block = el('div', 'cidict-reading');
@@ -308,8 +307,7 @@
   function buildHoverContent(word, entry) {
     var frag = document.createDocumentFragment();
     var head = el('div', 'cidict-head');
-    head.appendChild(document.createTextNode(word));
-    if (entry.t) head.appendChild(el('span', 'cidict-trad', ' [' + entry.t + ']'));
+    renderHead(head, word, entry);
     frag.appendChild(head);
     var body = el('div', 'cidict-hover-body');
     var rd = (entry.r || [])[0];
@@ -519,7 +517,7 @@
     var rd = entry.r[dockReadingIdx];
     var dock = ensureDock();
     dock.dataset.cidictTheme = opts.theme;
-    dock._word.textContent = word + (entry.t ? ' [' + entry.t + ']' : '');
+    renderHead(dock._word, word, entry);
     dock._pinyin.textContent = rd.y || '';
     dock._credit.setAttribute('href', kamusUrl(word));
     dock._readingRow.style.display = n > 1 ? '' : 'none';
@@ -601,6 +599,48 @@
       out += d[i] === '-' ? (s[i] || '') : d[i];
     }
     return out;
+  }
+
+  // Mirror dari tradDash() di server: encode simplified relatif ke
+  // tradisional ("-" = karakter sama dengan tradisional).
+  function simpDash(trad, simp) {
+    var s = Array.from(simp || ''), t = Array.from(trad || '');
+    var n = Math.max(s.length, t.length), out = '', allDash = true;
+    for (var i = 0; i < n; i++) {
+      if (s[i] === undefined) continue;
+      if (s[i] === t[i]) out += '-';
+      else { out += s[i]; allDash = false; }
+    }
+    return allDash ? null : out;
+  }
+
+  // Hanzi utama di head popup/dock mengikuti mode: tradisional penuh saat
+  // useTrad, dengan bentuk lawannya di kurung siku memakai aturan
+  // dash-encoding yang sama ('-' = karakter sama).
+  function headWord(word, entry) {
+    if (!useTrad || !entry || !entry.t) {
+      return { main: word, bracket: entry && entry.t ? entry.t : null };
+    }
+    var tradFull = expandTrad(word, entry.t);
+    return { main: tradFull, bracket: simpDash(tradFull, word) };
+  }
+
+  function renderHead(head, word, entry) {
+    var hw = headWord(word, entry);
+    head.textContent = '';
+    head.appendChild(document.createTextNode(hw.main));
+    if (hw.bracket) head.appendChild(el('span', 'cidict-trad', ' [' + hw.bracket + ']'));
+  }
+
+  // Perbarui head popup & dock yang sedang terbuka saat toggle hanzi
+  // (konten popup/dock dibangun sekali saat dibuka).
+  function refreshHeads() {
+    if (popupEl && popupFor) {
+      var head = popupEl.querySelector('.cidict-head');
+      var w = popupFor.getAttribute('data-w');
+      if (head && w) renderHead(head, w, dictCache[w]);
+    }
+    if (dockActive && dockFor) renderDock();
   }
 
   // Terapkan pilihan simplified/traditional ke semua ruby yang sudah dirender.
@@ -1178,6 +1218,7 @@
     toggleHanzi: function (state) {
       useTrad = (typeof state === 'boolean') ? state : !useTrad;
       applyTrad();
+      refreshHeads();
       savePrefs();
       return this;
     },
