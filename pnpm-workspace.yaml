@@ -1,0 +1,9 @@
+# pnpm 11 memblokir build script dependensi secara default
+# (ERR_PNPM_IGNORED_BUILDS). esbuild butuh postinstall-nya untuk mengunduh
+# binary sesuai platform — tanpa ini `pnpm install` gagal di Hostinger dan
+# `pnpm run build` tidak pernah jalan.
+# Catatan: field `pnpm.onlyBuiltDependencies` di package.json TIDAK dibaca
+# lagi oleh pnpm 11 (diabaikan dengan warning) — allowBuilds di file ini
+# adalah satu-satunya cara yang didukung.
+allowBuilds:
+  esbuild: true
