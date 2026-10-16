@@ -20,6 +20,9 @@
     --bg-soft: #f5f7fc;
     --radius: 12px;
   }
+  html {
+	scroll-behavior: smooth;
+  }
   * { box-sizing: border-box; }
   body {
     font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -379,7 +382,11 @@
   displayMode: 'both',
   dockAlign: 'right',
   chunkSize: 2000,
-  maxConcurrency: 3
+  maxConcurrency: 3,
+  loading: {
+    target: '.loading-indicator',
+    show: 'flex'
+  }
 });</pre>
     </div>
   </section>
